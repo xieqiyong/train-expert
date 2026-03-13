@@ -1,0 +1,9 @@
+/target/
+**/target/
+/.mvn/
+/.idea/
+/data/
+*.log
+.claude
+.codex
+技术方案设计文档.md

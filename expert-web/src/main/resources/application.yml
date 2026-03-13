@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: databuff-digital-expert
+  datasource:
+    url: ${DB_URL:jdbc:mysql://192.168.50.195:3306/expert_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:234*(sdlj12}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  mvc:
+    format:
+      date: yyyy-MM-dd
+      time: HH:mm:ss
+      date-time: yyyy-MM-dd HH:mm:ss
+
+server:
+  port: ${SERVER_PORT:8080}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+digital-expert:
+  shared-root: ${DIGITAL_EXPERT_SHARED_ROOT:./data/shared}
+  release-executor-pool-size: ${DIGITAL_EXPERT_RELEASE_POOL_SIZE:2}
+  release-executor-queue-capacity: ${DIGITAL_EXPERT_RELEASE_QUEUE_CAPACITY:50}
