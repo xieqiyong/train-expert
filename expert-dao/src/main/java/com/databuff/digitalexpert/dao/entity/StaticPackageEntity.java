@@ -13,6 +13,7 @@ public class StaticPackageEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String name;
+    private String staticType;
     private String description;
     private String packageName;
     private String packagePath;
@@ -21,4 +22,3 @@ public class StaticPackageEntity {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

@@ -327,6 +327,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
                         .map(staticPackage -> new ExpertConfigStaticPackageResponse(
                                 staticPackage.getId(),
                                 staticPackage.getName(),
+                                staticPackage.getStaticType(),
                                 staticPackage.getDescription(),
                                 staticPackage.getPackageName(),
                                 staticPackage.getPackagePath()

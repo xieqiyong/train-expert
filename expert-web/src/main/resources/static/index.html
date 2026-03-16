@@ -161,7 +161,7 @@
         <section class="card">
             <h2>2. 上传 static package</h2>
             <form id="static-form">
-                <label>staticPackageId<input name="staticPackageId" value="sales_templates" required></label>
+                <label>staticType<input name="staticType" value="DOCUMENT" required></label>
                 <label>名称<input name="name" value="销售模板包" required></label>
                 <label>描述<input name="description" value="联调用模板" ></label>
                 <label>资源文件<input type="file" name="file" required></label>
@@ -264,7 +264,10 @@ create_quote</textarea></label>
         const form = event.currentTarget;
         const payload = new FormData(form);
         try {
-            await request("/api/v1/static-packages/upload", { method: "POST", body: payload });
+            const result = await request("/api/v1/static-packages/upload", { method: "POST", body: payload });
+            if (result?.id) {
+                document.querySelector('#binding-form input[name="staticPackages"]').value = String(result.id);
+            }
         } catch (error) {
             log("static package 上传失败", error.message);
         }

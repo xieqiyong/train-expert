@@ -31,13 +31,14 @@ public class StaticPackageServiceImpl implements StaticPackageService {
 
     @Override
     @Transactional
-    public StaticPackageResponse upload(String name, String description, MultipartFile file) {
+    public StaticPackageResponse upload(String name, String staticType, String description, MultipartFile file) {
         byte[] packageBytes = readBytes(file);
         String packageName = resolveFileName(file);
 
         LocalDateTime now = LocalDateTime.now();
         StaticPackageEntity entity = new StaticPackageEntity();
         entity.setName(name);
+        entity.setStaticType(normalizeStaticType(staticType));
         entity.setDescription(description);
         entity.setPackageName(packageName);
         entity.setChecksum(zipArchiveService.sha256Hex(packageBytes));
@@ -77,6 +78,7 @@ public class StaticPackageServiceImpl implements StaticPackageService {
         return new StaticPackageResponse(
                 entity.getId(),
                 entity.getName(),
+                entity.getStaticType(),
                 entity.getDescription(),
                 entity.getPackageName(),
                 entity.getPackagePath(),
@@ -102,5 +104,16 @@ public class StaticPackageServiceImpl implements StaticPackageService {
         } catch (IOException ex) {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to read static package");
         }
+    }
+
+    private String normalizeStaticType(String staticType) {
+        if (staticType == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Static package type is required");
+        }
+        String normalized = staticType.trim();
+        if (normalized.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Static package type is required");
+        }
+        return normalized;
     }
 }

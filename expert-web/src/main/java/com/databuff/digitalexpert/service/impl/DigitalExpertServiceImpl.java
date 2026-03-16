@@ -61,9 +61,11 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Override
     @Transactional
     public ExpertSummaryResponse createExpert(CreateExpertRequest request) {
+        String name = normalizeName(request.name());
+        ensureExpertNameUnique(name);
         LocalDateTime now = LocalDateTime.now();
         DigitalExpertEntity entity = new DigitalExpertEntity();
-        entity.setName(request.name());
+        entity.setName(name);
         entity.setDescription(request.description());
         entity.setStatus(ExpertStatus.DRAFT.name());
         entity.setReleaseVersion(0);
@@ -131,7 +133,6 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         digitalExpertMapper.update(null, new LambdaUpdateWrapper<DigitalExpertEntity>()
                 .eq(DigitalExpertEntity::getId, expertId)
                 .set(DigitalExpertEntity::getUpdatedAt, now));
-        expertConfigService.evict(expertId);
         return new ExpertBindingUpdateResponse(expertId, true);
     }
 
@@ -159,6 +160,25 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 .eq(ExpertReleaseTaskEntity::getExpertId, expertId)
                 .in(ExpertReleaseTaskEntity::getStatus, List.of("PENDING", "RUNNING")));
         return count != null && count > 0;
+    }
+
+    private void ensureExpertNameUnique(String name) {
+        Long count = digitalExpertMapper.selectCount(new LambdaQueryWrapper<DigitalExpertEntity>()
+                .eq(DigitalExpertEntity::getName, name));
+        if (count != null && count > 0) {
+            throw BusinessException.conflict(ErrorCode.DUPLICATE_RESOURCE, "Expert name already exists: " + name);
+        }
+    }
+
+    private String normalizeName(String name) {
+        if (name == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Expert name is required");
+        }
+        String normalized = name.trim();
+        if (normalized.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Expert name is required");
+        }
+        return normalized;
     }
 
     private ExpertSummaryResponse toSummary(DigitalExpertEntity entity) {

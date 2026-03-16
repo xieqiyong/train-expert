@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS skill_package (
 CREATE TABLE IF NOT EXISTS static_package (
     id                BIGINT        NOT NULL AUTO_INCREMENT         COMMENT '主键',
     name              VARCHAR(128)  NOT NULL                        COMMENT '包名称',
+    static_type       VARCHAR(64)   NOT NULL                        COMMENT '静态资源类型',
     description       VARCHAR(512)  NULL                            COMMENT '包描述',
     package_name      VARCHAR(128)  NOT NULL                        COMMENT '包文件名',
     package_path      TEXT          NOT NULL                        COMMENT '包存储路径',
@@ -38,7 +39,8 @@ CREATE TABLE IF NOT EXISTS digital_expert (
     disabled_at          TIMESTAMP       NULL                       COMMENT '最近禁用时间',
     created_at           TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT uk_digital_expert_name UNIQUE (name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数字专家';
 
 CREATE TABLE IF NOT EXISTS expert_skill_binding (

@@ -23,10 +23,11 @@ public class StaticPackageController {
     private final StaticPackageService staticPackageService;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<StaticPackageResponse> upload(@RequestParam String name,
-                                                     @RequestParam(required = false) String description,
+    public ApiResponse<StaticPackageResponse> upload(@RequestParam("name") String name,
+                                                     @RequestParam("staticType") String staticType,
+                                                     @RequestParam("description") String description,
                                                      @RequestParam("file") MultipartFile file) {
-        return ApiResponse.success(staticPackageService.upload(name, description, file));
+        return ApiResponse.success(staticPackageService.upload(name, staticType, description, file));
     }
 
     @GetMapping("/{id}")

@@ -47,7 +47,7 @@ public class DigitalExpertController {
     }
 
     @PutMapping("/{expertId}/bindings")
-    public ApiResponse<ExpertBindingUpdateResponse> updateBindings(@PathVariable Long expertId,
+    public ApiResponse<ExpertBindingUpdateResponse> updateBindings(@PathVariable("expertId") Long expertId,
                                                                    @Valid @RequestBody UpdateExpertBindingsRequest request) {
         return ApiResponse.success(digitalExpertService.updateBindings(expertId, request));
     }
@@ -64,7 +64,7 @@ public class DigitalExpertController {
     }
 
     @GetMapping("/{expertId}/config")
-    public ApiResponse<ExpertConfigResponse> getConfig(@PathVariable Long expertId) {
+    public ApiResponse<ExpertConfigResponse> getConfig(@PathVariable("expertId") Long expertId) {
         return ApiResponse.success(expertConfigService.getConfig(expertId));
     }
 

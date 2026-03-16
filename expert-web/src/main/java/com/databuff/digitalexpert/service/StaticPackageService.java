@@ -6,7 +6,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface StaticPackageService {
 
-    StaticPackageResponse upload(String name, String description, MultipartFile file);
+    StaticPackageResponse upload(String name, String staticType, String description, MultipartFile file);
 
     StaticPackageResponse getById(Long id);
 

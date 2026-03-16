@@ -50,7 +50,6 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
 
 
     @Override
-    @Cacheable(cacheNames = "expertConfig", key = "#expertId")
     public ExpertConfigResponse getConfig(Long expertId) {
         DigitalExpertEntity expert = requireExpert(expertId);
         List<ExpertConfigSkillResponse> skills = loadSkillConfigs(expertId);
@@ -133,6 +132,7 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
             responses.add(new ExpertConfigStaticPackageResponse(
                     staticPackage.getId(),
                     staticPackage.getName(),
+                    staticPackage.getStaticType(),
                     staticPackage.getDescription(),
                     staticPackage.getPackageName(),
                     staticPackage.getPackagePath()
