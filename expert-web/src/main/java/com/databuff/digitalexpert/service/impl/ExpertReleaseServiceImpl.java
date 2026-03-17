@@ -79,7 +79,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
     public ExpertReleaseTaskResponse submitReleaseTask(Long expertId) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
         if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
-            throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "Expert is disabled: " + expertId);
+            throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "专家已被禁用: " + expertId);
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -97,7 +97,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
         } catch (DuplicateKeyException ex) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
-                    "Active release task exists for expert: " + expertId
+                    "专家存在进行中的发布任务: " + expertId
             );
         }
         releaseTaskExecutor.execute(() -> runTask(entity.getTaskId()));
@@ -110,7 +110,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
                 .eq(ExpertReleaseTaskEntity::getTaskId, taskId)
                 .eq(ExpertReleaseTaskEntity::getExpertId, expertId));
         if (entity == null) {
-            throw BusinessException.notFound(ErrorCode.RELEASE_TASK_NOT_FOUND, "Release task not found: " + taskId);
+            throw BusinessException.notFound(ErrorCode.RELEASE_TASK_NOT_FOUND, "发布任务不存在: " + taskId);
         }
         return toResponse(entity);
     }
@@ -122,7 +122,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             markTaskRunning(task);
             DigitalExpertEntity expert = expertConfigService.requireExpert(task.getExpertId());
             if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
-                throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "Expert is disabled during release");
+                throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "发布过程中专家被禁用");
             }
 
             List<SkillPackageEntity> skillPackages = loadSkillPackages(expert.getId());
@@ -160,7 +160,6 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             sharedStorageService.promoteExpertDirectory(stagingDirectory, currentDirectory);
             markTaskSuccess(task, currentConfigPath, currentZipPath);
             updateExpertAfterRelease(expert, taskId, currentDirectory, currentConfigPath, currentZipPath);
-            expertConfigService.evict(expert.getId());
         } catch (Exception ex) {
             log.error("Release task {} failed", taskId, ex);
             if (stagingDirectory != null && sharedStorageService.exists(stagingDirectory)) {
@@ -174,7 +173,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
         ExpertReleaseTaskEntity entity = expertReleaseTaskMapper.selectOne(new LambdaQueryWrapper<ExpertReleaseTaskEntity>()
                 .eq(ExpertReleaseTaskEntity::getTaskId, taskId));
         if (entity == null) {
-            throw BusinessException.notFound(ErrorCode.RELEASE_TASK_NOT_FOUND, "Release task not found: " + taskId);
+            throw BusinessException.notFound(ErrorCode.RELEASE_TASK_NOT_FOUND, "发布任务不存在: " + taskId);
         }
         return entity;
     }
@@ -245,7 +244,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             if (entity == null) {
                 throw BusinessException.notFound(
                         ErrorCode.SKILL_PACKAGE_NOT_FOUND,
-                        "Skill package not found: " + binding.getSkillId()
+                        "技能包不存在: " + binding.getSkillId()
                 );
             }
             result.add(entity);
@@ -265,7 +264,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             if (entity == null) {
                 throw BusinessException.notFound(
                         ErrorCode.STATIC_PACKAGE_NOT_FOUND,
-                        "Static package not found: " + binding.getStaticPackageId()
+                        "静态资源包不存在: " + binding.getStaticPackageId()
                 );
             }
             result.add(entity);
@@ -343,7 +342,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             String json = JSON.toJSONString(configResponse);
             Files.writeString(target, json);
         } catch (IOException ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to write expert config JSON");
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "写入专家配置 JSON 失败");
         }
     }
 

@@ -68,7 +68,7 @@ public class StaticPackageServiceImpl implements StaticPackageService {
         if (entity == null) {
             throw BusinessException.notFound(
                     ErrorCode.STATIC_PACKAGE_NOT_FOUND,
-                    "Static package not found: " + id
+                    "静态资源包不存在: " + id
             );
         }
         return entity;
@@ -90,29 +90,29 @@ public class StaticPackageServiceImpl implements StaticPackageService {
     private String resolveFileName(MultipartFile file) {
         String original = file == null ? null : file.getOriginalFilename();
         if (original == null || original.isBlank()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Static package file name is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "静态资源包文件名不能为空");
         }
         return Path.of(original).getFileName().toString();
     }
 
     private byte[] readBytes(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Static package file is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "静态资源包文件不能为空");
         }
         try {
             return file.getBytes();
         } catch (IOException ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to read static package");
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "读取静态资源包失败");
         }
     }
 
     private String normalizeStaticType(String staticType) {
         if (staticType == null) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Static package type is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "静态资源包类型不能为空");
         }
         String normalized = staticType.trim();
         if (normalized.isEmpty()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Static package type is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "静态资源包类型不能为空");
         }
         return normalized;
     }

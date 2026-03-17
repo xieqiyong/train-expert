@@ -1,37 +1,39 @@
 package com.databuff.digitalexpert.api;
 
+import com.databuff.digitalexpert.dao.dto.IdRequest;
 import com.databuff.digitalexpert.dao.dto.StaticPackageResponse;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.databuff.digitalexpert.service.StaticPackageService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @Validated
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/v1/static-packages")
 public class StaticPackageController {
 
-    private final StaticPackageService staticPackageService;
+    @Autowired
+    private StaticPackageService staticPackageService;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<StaticPackageResponse> upload(@RequestParam("name") String name,
-                                                     @RequestParam("staticType") String staticType,
-                                                     @RequestParam("description") String description,
-                                                     @RequestParam("file") MultipartFile file) {
+    public ApiResponse<StaticPackageResponse> upload(@RequestPart("name") String name,
+                                                     @RequestPart("staticType") String staticType,
+                                                     @RequestPart(value = "description", required = false) String description,
+                                                     @RequestPart("file") MultipartFile file) {
         return ApiResponse.success(staticPackageService.upload(name, staticType, description, file));
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<StaticPackageResponse> getById(@PathVariable Long id) {
-        return ApiResponse.success(staticPackageService.getById(id));
+    @PostMapping("/detail")
+    public ApiResponse<StaticPackageResponse> getById(@Valid @RequestBody IdRequest request) {
+        return ApiResponse.success(staticPackageService.getById(request.id()));
     }
 }

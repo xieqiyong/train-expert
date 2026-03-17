@@ -7,7 +7,5 @@ public interface ExpertConfigService {
 
     ExpertConfigResponse getConfig(Long expertId);
 
-    void evict(Long expertId);
-
     DigitalExpertEntity requireExpert(Long expertId);
 }

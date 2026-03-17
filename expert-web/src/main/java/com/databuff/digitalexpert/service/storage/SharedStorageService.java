@@ -2,7 +2,7 @@ package com.databuff.digitalexpert.service.storage;
 
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
-import com.databuff.digitalexpert.config.DigitalExpertProperties;
+import com.databuff.digitalexpert.config.ExpertProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SharedStorageService {
 
-    private final DigitalExpertProperties properties;
+    private final ExpertProperties properties;
 
     public Path getSharedRoot() {
         return Paths.get(properties.getSharedRoot()).toAbsolutePath().normalize();
@@ -43,6 +43,14 @@ public class SharedStorageService {
         return resolveExpertRoot(expertId).resolve("staging").resolve(taskId).normalize();
     }
 
+    public Path resolveExpertTrainingDirectory(Long expertId, String taskId) {
+        return resolveExpertRoot(expertId).resolve("training").resolve(taskId).normalize();
+    }
+
+    public Path resolveExpertTrainingOutputDirectory(Long expertId, String taskId) {
+        return resolveExpertTrainingDirectory(expertId, taskId).resolve("generated-skills").normalize();
+    }
+
     public void recreateDirectory(Path directory) {
         deleteRecursively(directory);
         createDirectories(directory);
@@ -53,7 +61,7 @@ public class SharedStorageService {
         try {
             Files.createDirectories(directory);
         } catch (IOException ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to create directory: " + directory);
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "创建目录失败: " + directory);
         }
     }
 
@@ -63,14 +71,14 @@ public class SharedStorageService {
         try {
             Files.write(target, data, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to write file: " + target);
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "写入文件失败: " + target);
         }
     }
 
     public void ensureFileExists(Path path) {
         ensureWithinSharedRoot(path);
         if (!Files.exists(path) || !Files.isRegularFile(path)) {
-            throw BusinessException.badRequest(ErrorCode.PACKAGE_PATH_MISSING, "File not found: " + path);
+            throw BusinessException.badRequest(ErrorCode.PACKAGE_PATH_MISSING, "文件不存在: " + path);
         }
     }
 
@@ -97,7 +105,7 @@ public class SharedStorageService {
             deleteRecursively(backupDirectory);
         } catch (IOException ex) {
             tryRestoreBackup(currentDirectory, backupDirectory);
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to promote expert directory");
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "提升专家目录失败");
         } finally {
             if (Files.exists(stagingDirectory)) {
                 deleteRecursively(stagingDirectory);
@@ -118,11 +126,11 @@ public class SharedStorageService {
                 try {
                     Files.deleteIfExists(current);
                 } catch (IOException ex) {
-                    throw new IllegalStateException("Failed to delete path " + current, ex);
+                    throw new IllegalStateException("删除路径失败 " + current, ex);
                 }
             });
         } catch (IOException ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to delete path: " + path);
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "删除路径失败: " + path);
         }
     }
 
@@ -141,7 +149,7 @@ public class SharedStorageService {
         Path normalized = path.toAbsolutePath().normalize();
         Path root = getSharedRoot();
         if (!normalized.startsWith(root)) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Path is outside shared root");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "路径超出共享根目录");
         }
     }
 }

@@ -1,17 +1,17 @@
 package com.databuff.digitalexpert;
 
-import com.databuff.digitalexpert.config.DigitalExpertProperties;
-import org.apache.ibatis.annotations.Mapper;
+import com.databuff.digitalexpert.config.ExpertProperties;
 import org.mybatis.spring.annotation.MapperScan;
-import org.mybatis.spring.annotation.MapperScans;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableCaching
+@EnableScheduling
 @SpringBootApplication
-@EnableConfigurationProperties(DigitalExpertProperties.class)
+@EnableConfigurationProperties(ExpertProperties.class)
 @MapperScan({"com.databuff.digitalexpert.dao.mapper"})
 public class DigitalExpertApplication {
 
@@ -19,4 +19,3 @@ public class DigitalExpertApplication {
         SpringApplication.run(DigitalExpertApplication.class, args);
     }
 }
-

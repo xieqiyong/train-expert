@@ -9,14 +9,14 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 public class ReleaseExecutorConfig {
 
     @Bean(name = "releaseTaskExecutor")
-    public Executor releaseTaskExecutor(DigitalExpertProperties properties) {
+    public Executor releaseTaskExecutor(ExpertProperties properties) {
+        ExpertProperties.Release release = properties.getRelease();
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("expert-release-");
-        executor.setCorePoolSize(properties.getReleaseExecutorPoolSize());
-        executor.setMaxPoolSize(properties.getReleaseExecutorPoolSize());
-        executor.setQueueCapacity(properties.getReleaseExecutorQueueCapacity());
+        executor.setCorePoolSize(release.getExecutorPoolSize());
+        executor.setMaxPoolSize(release.getExecutorPoolSize());
+        executor.setQueueCapacity(release.getExecutorQueueCapacity());
         executor.initialize();
         return executor;
     }
 }
-

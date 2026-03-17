@@ -66,7 +66,7 @@ public class SkillPackageServiceImpl implements SkillPackageService {
     public SkillPackageEntity requireById(Long id) {
         SkillPackageEntity entity = skillPackageMapper.selectById(id);
         if (entity == null) {
-            throw BusinessException.notFound(ErrorCode.SKILL_PACKAGE_NOT_FOUND, "Skill package not found: " + id);
+            throw BusinessException.notFound(ErrorCode.SKILL_PACKAGE_NOT_FOUND, "技能包不存在: " + id);
         }
         return entity;
     }
@@ -85,12 +85,12 @@ public class SkillPackageServiceImpl implements SkillPackageService {
 
     private byte[] readBytes(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "Skill package file is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包文件不能为空");
         }
         try {
             return file.getBytes();
         } catch (IOException ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to read skill package");
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "读取技能包失败");
         }
     }
 

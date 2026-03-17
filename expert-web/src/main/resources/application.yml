@@ -29,6 +29,7 @@ mybatis-plus:
     banner: false
 
 digital-expert:
-  shared-root: ${DIGITAL_EXPERT_SHARED_ROOT:./data/shared}
-  release-executor-pool-size: ${DIGITAL_EXPERT_RELEASE_POOL_SIZE:2}
-  release-executor-queue-capacity: ${DIGITAL_EXPERT_RELEASE_QUEUE_CAPACITY:50}
+  shared-root: ./data/shared
+  proxy:
+    timeout-ms: 15000
+    base-url: http://192.168.50.18:19300

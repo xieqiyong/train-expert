@@ -74,16 +74,10 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
     }
 
     @Override
-    @CacheEvict(cacheNames = "expertConfig", key = "#expertId")
-    public void evict(Long expertId) {
-        // Annotation-driven eviction.
-    }
-
-    @Override
     public DigitalExpertEntity requireExpert(Long expertId) {
         DigitalExpertEntity expert = digitalExpertMapper.selectById(expertId);
         if (expert == null) {
-            throw BusinessException.notFound(ErrorCode.EXPERT_NOT_FOUND, "Expert not found: " + expertId);
+            throw BusinessException.notFound(ErrorCode.EXPERT_NOT_FOUND, "专家不存在: " + expertId);
         }
         return expert;
     }
@@ -100,7 +94,7 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
             if (skillPackage == null) {
                 throw BusinessException.notFound(
                         ErrorCode.SKILL_PACKAGE_NOT_FOUND,
-                        "Skill package not found: " + binding.getSkillId()
+                        "技能包不存在: " + binding.getSkillId()
                 );
             }
             responses.add(new ExpertConfigSkillResponse(
@@ -126,7 +120,7 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
             if (staticPackage == null) {
                 throw BusinessException.notFound(
                         ErrorCode.STATIC_PACKAGE_NOT_FOUND,
-                        "Static package not found: " + binding.getStaticPackageId()
+                        "静态资源包不存在: " + binding.getStaticPackageId()
                 );
             }
             responses.add(new ExpertConfigStaticPackageResponse(

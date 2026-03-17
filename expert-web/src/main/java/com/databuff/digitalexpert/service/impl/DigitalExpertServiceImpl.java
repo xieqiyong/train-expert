@@ -14,13 +14,17 @@ import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertReleaseTaskEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertSkillBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
+import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
+import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
+import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertMcpBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertReleaseTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
+import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
 import com.databuff.digitalexpert.service.DigitalExpertService;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.SkillPackageService;
@@ -52,6 +56,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Autowired
     private ExpertReleaseTaskMapper expertReleaseTaskMapper;
     @Autowired
+    private ExpertTrainingTaskMapper expertTrainingTaskMapper;
+    @Autowired
     private SkillPackageService skillPackageService;
     @Autowired
     private StaticPackageService staticPackageService;
@@ -80,7 +86,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     public ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
         if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
-            throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "Expert is disabled: " + expertId);
+            throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "专家已被禁用: " + expertId);
         }
 
         List<Long> skillIds = deduplicateIds(request == null ? null : request.skills());
@@ -143,7 +149,13 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
-                    "Active release task exists for expert: " + expertId
+                    "专家存在进行中的发布任务: " + expertId
+            );
+        }
+        if (hasActiveTrainingTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_TRAINING_TASK_EXISTS,
+                    "专家存在进行中的训练任务: " + expertId
             );
         }
         LocalDateTime now = LocalDateTime.now();
@@ -151,14 +163,20 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         expert.setDisabledAt(now);
         expert.setUpdatedAt(now);
         digitalExpertMapper.updateById(expert);
-        expertConfigService.evict(expertId);
         return toSummary(expert);
     }
 
     private boolean hasActiveReleaseTask(Long expertId) {
         Long count = expertReleaseTaskMapper.selectCount(new LambdaQueryWrapper<ExpertReleaseTaskEntity>()
                 .eq(ExpertReleaseTaskEntity::getExpertId, expertId)
-                .in(ExpertReleaseTaskEntity::getStatus, List.of("PENDING", "RUNNING")));
+                .in(ExpertReleaseTaskEntity::getStatus, ReleaseTaskStatus.activeTaskStatuses()));
+        return count != null && count > 0;
+    }
+
+    private boolean hasActiveTrainingTask(Long expertId) {
+        Long count = expertTrainingTaskMapper.selectCount(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                .eq(ExpertTrainingTaskEntity::getExpertId, expertId)
+                .in(ExpertTrainingTaskEntity::getStatus, TrainingTaskStatus.activeTaskStatuses()));
         return count != null && count > 0;
     }
 
@@ -166,17 +184,17 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         Long count = digitalExpertMapper.selectCount(new LambdaQueryWrapper<DigitalExpertEntity>()
                 .eq(DigitalExpertEntity::getName, name));
         if (count != null && count > 0) {
-            throw BusinessException.conflict(ErrorCode.DUPLICATE_RESOURCE, "Expert name already exists: " + name);
+            throw BusinessException.conflict(ErrorCode.DUPLICATE_RESOURCE, "专家名称已存在: " + name);
         }
     }
 
     private String normalizeName(String name) {
         if (name == null) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Expert name is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家名称不能为空");
         }
         String normalized = name.trim();
         if (normalized.isEmpty()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Expert name is required");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家名称不能为空");
         }
         return normalized;
     }
@@ -222,20 +240,20 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             if (!bindingNames.add(mcp.bindingName())) {
                 throw BusinessException.badRequest(
                         ErrorCode.MCP_BINDING_INVALID,
-                        "Duplicate MCP binding name: " + mcp.bindingName()
+                        "MCP 绑定名称重复: " + mcp.bindingName()
                 );
             }
             URI uri = URI.create(mcp.mcpUrl());
             if (!uri.isAbsolute() || uri.getHost() == null) {
                 throw BusinessException.badRequest(
                         ErrorCode.MCP_BINDING_INVALID,
-                        "Invalid MCP URL: " + mcp.mcpUrl()
+                        "MCP 地址不合法: " + mcp.mcpUrl()
                 );
             }
             if (mcp.toolWhitelist().stream().filter(Objects::nonNull).map(String::trim).anyMatch(String::isBlank)) {
                 throw BusinessException.badRequest(
                         ErrorCode.MCP_BINDING_INVALID,
-                        "Tool whitelist contains blank entry"
+                        "工具白名单包含空白项"
                 );
             }
         }
@@ -245,7 +263,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         try {
             return JSONObject.toJSONString(whitelist);
         } catch (Exception ex) {
-            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "Failed to serialize MCP tool whitelist");
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "序列化 MCP 工具白名单失败");
         }
     }
 }

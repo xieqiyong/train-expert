@@ -26,6 +26,7 @@
         <maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
         <lombok.version>1.18.28</lombok.version>
         <fastjson2.version>2.0.61</fastjson2.version>
+        <hutool.version>5.8.25</hutool.version>
     </properties>
     <dependencies>
         <dependency>
@@ -70,6 +71,11 @@
                 <artifactId>fastjson2</artifactId>
                 <version>${fastjson2.version}</version>
             </dependency>
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-http</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -91,5 +97,14 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <release>${java.version}</release>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 </project>

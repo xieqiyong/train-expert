@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数字员工调试台</title>
+    <style>
+        :root {
+            --bg: #f3efe6;
+            --panel: rgba(255, 252, 246, 0.9);
+            --panel-strong: #fffdfa;
+            --ink: #18212b;
+            --muted: #667085;
+            --line: rgba(24, 33, 43, 0.12);
+            --accent: #0d6b63;
+            --accent-strong: #084c46;
+            --warn: #bf5b2b;
+            --shadow: 0 18px 40px rgba(24, 33, 43, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(13, 107, 99, 0.16), transparent 24rem),
+                radial-gradient(circle at bottom right, rgba(191, 91, 43, 0.14), transparent 20rem),
+                linear-gradient(180deg, #fcfaf5 0%, var(--bg) 100%);
+        }
+
+        .page {
+            width: min(1200px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 56px;
+        }
+
+        .hero {
+            padding: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 28px;
+            background: linear-gradient(135deg, rgba(8, 76, 70, 0.96), rgba(24, 33, 43, 0.94));
+            color: #f8fafc;
+            box-shadow: 0 24px 60px rgba(24, 33, 43, 0.18);
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(30px, 5vw, 52px);
+            line-height: 1;
+        }
+
+        .hero p {
+            max-width: 760px;
+            margin: 14px 0 0;
+            color: rgba(248, 250, 252, 0.82);
+            line-height: 1.7;
+        }
+
+        .toolbar {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 1.1fr 0.9fr;
+            margin-top: 20px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .card h2,
+        .card h3 {
+            margin: 0 0 10px;
+            font-size: 20px;
+        }
+
+        .subtle {
+            margin: 0 0 16px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 16px;
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            margin-top: 6px;
+            padding: 12px 13px;
+            border: 1px solid rgba(24, 33, 43, 0.14);
+            border-radius: 14px;
+            background: var(--panel-strong);
+            color: var(--ink);
+            font: inherit;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 11px 16px;
+            font: inherit;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            cursor: pointer;
+        }
+
+        button.alt {
+            background: linear-gradient(135deg, #46566b, #1d2939);
+        }
+
+        button.warn {
+            background: linear-gradient(135deg, var(--warn), #8f3a14);
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+        .stats {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stat {
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.55);
+        }
+
+        .stat span {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .stat strong {
+            display: block;
+            margin-top: 8px;
+            font-size: 16px;
+            overflow-wrap: anywhere;
+        }
+
+        .console {
+            margin-top: 16px;
+            padding: 18px;
+            border-radius: 24px;
+            background: #101923;
+            color: #d8f5f0;
+            min-height: 300px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: "IBM Plex Mono", Consolas, monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .hint-list {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        @media (max-width: 960px) {
+            .toolbar,
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <section class="hero">
+        <h1>数字员工调试台</h1>
+        <p>这个页面只做联调，不做权限、不做路由。默认调用当前服务同源接口。你可以直接创建专家、提交训练、查询训练任务、查配置、手动发布和下载产物。</p>
+    </section>
+
+    <section class="toolbar">
+        <div class="card">
+            <div class="card-body">
+                <h2>接口设置</h2>
+                <p class="subtle">`API 基础路径` 留空时走当前服务同源地址，例如 `http://127.0.0.1:8080`。如果前后端分开启动，再手动填完整地址。</p>
+                <label>
+                    API 基础路径
+                    <input id="api-base" placeholder="留空表示当前服务，例如 http://127.0.0.1:8080">
+                </label>
+                <div class="button-row">
+                    <button id="save-settings" type="button">保存设置</button>
+                    <button id="clear-console" class="alt" type="button">清空日志</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h2>当前状态</h2>
+                <div class="stats">
+                    <div class="stat">
+                        <span>最近专家 ID</span>
+                        <strong id="stat-expert-id">-</strong>
+                    </div>
+                    <div class="stat">
+                        <span>最近训练任务 ID</span>
+                        <strong id="stat-training-task-id">-</strong>
+                    </div>
+                    <div class="stat">
+                        <span>最近会话 ID</span>
+                        <strong id="stat-session-id">-</strong>
+                    </div>
+                    <div class="stat">
+                        <span>最近发布任务 ID</span>
+                        <strong id="stat-release-task-id">-</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="grid">
+        <div class="card">
+            <div class="card-body">
+                <h3>1. 创建专家</h3>
+                <p class="subtle">`expertId` 由后端自增生成，这里只需要名称和描述。</p>
+                <form id="create-expert-form">
+                    <label>
+                        专家名称
+                        <input name="name" value="销售数字员工" required>
+                    </label>
+                    <label>
+                        专家描述
+                        <textarea name="description">用于调试文档训练、技能生成和自动发布流程。</textarea>
+                    </label>
+                    <div class="button-row">
+                        <button type="submit">创建专家</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>2. 提交训练</h3>
+                <p class="subtle">每行一个来源，格式：`类型|值`。可用类型：`DOC_FILE`、`DOC_PACKAGE`、`GIT_URL`、`DOC_URL`、`JAR_URL`、`LOCAL_PATH`。</p>
+                <form id="training-form">
+                    <label>
+                        专家 ID
+                        <input name="expertId" id="training-expert-id" required>
+                    </label>
+                    <label>
+                        训练目标
+                        <textarea name="trainingGoal">基于输入资料生成符合规范的 skills，并完成数字员工训练。</textarea>
+                    </label>
+                    <label>
+                        训练来源
+                        <textarea name="sources" required>LOCAL_PATH|E:\demo\docs
+DOC_URL|https://example.com/spec
+GIT_URL|https://example.com/repo.git</textarea>
+                    </label>
+                    <div class="button-row">
+                        <button type="submit">提交训练任务</button>
+                        <button type="button" class="alt" id="query-training-task">查询训练任务</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>3. 发布与配置</h3>
+                <p class="subtle">训练成功后，训练任务会带出 `releaseTaskId`。也可以手动触发发布。</p>
+                <form id="release-form">
+                    <label>
+                        专家 ID
+                        <input name="expertId" id="release-expert-id" required>
+                    </label>
+                    <label>
+                        发布任务 ID
+                        <input name="releaseTaskId" id="release-task-id">
+                    </label>
+                    <div class="button-row">
+                        <button type="button" id="submit-release">手动创建发布任务</button>
+                        <button type="button" class="alt" id="query-release-task">查询发布任务</button>
+                        <button type="button" class="alt" id="query-config">查询当前配置</button>
+                        <button type="button" class="alt" id="download-package">下载 ZIP</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3>4. 使用说明</h3>
+                <ul class="hint-list">
+                    <li>先创建专家，再提交训练。</li>
+                    <li>提交训练后，页面会自动回填训练任务 ID。</li>
+                    <li>查询训练任务时，如果后端已经拿到 `sessionId`、`releaseTaskId`，页面也会自动回填。</li>
+                    <li>下载 ZIP 会优先校验接口是否可用，不会直接盲开新窗口。</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <pre class="console" id="console">控制台已就绪。</pre>
+</div>
+
+<script>
+    const storageKey = "digital-expert-debug-state";
+    const consoleEl = document.getElementById("console");
+    const state = {
+        apiBase: "",
+        expertId: "",
+        trainingTaskId: "",
+        sessionId: "",
+        releaseTaskId: ""
+    };
+
+    function loadState() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+            Object.assign(state, saved);
+        } catch (error) {
+            appendLog("读取本地状态失败", String(error));
+        }
+    }
+
+    function saveState() {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+        renderState();
+    }
+
+    function renderState() {
+        document.getElementById("api-base").value = state.apiBase || "";
+        document.getElementById("training-expert-id").value = state.expertId || "";
+        document.getElementById("release-expert-id").value = state.expertId || "";
+        document.getElementById("release-task-id").value = state.releaseTaskId || "";
+        document.getElementById("stat-expert-id").textContent = state.expertId || "-";
+        document.getElementById("stat-training-task-id").textContent = state.trainingTaskId || "-";
+        document.getElementById("stat-session-id").textContent = state.sessionId || "-";
+        document.getElementById("stat-release-task-id").textContent = state.releaseTaskId || "-";
+    }
+
+    function appendLog(title, payload) {
+        const time = new Date().toLocaleTimeString();
+        const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        consoleEl.textContent = `[${time}] ${title}\n${text}\n\n${consoleEl.textContent}`;
+    }
+
+    function normalizeBaseUrl() {
+        return (state.apiBase || "").trim().replace(/\/$/, "");
+    }
+
+    function buildUrl(path) {
+        const base = normalizeBaseUrl();
+        return base ? `${base}${path}` : path;
+    }
+
+    async function apiRequest(path, options = {}) {
+        const response = await fetch(buildUrl(path), options);
+        const contentType = response.headers.get("content-type") || "";
+        const isJson = contentType.includes("application/json");
+        if (!isJson) {
+            return response;
+        }
+
+        const body = await response.json();
+        appendLog(`${options.method || "GET"} ${path}`, body);
+        if (!response.ok) {
+            throw new Error(body.message || `HTTP ${response.status}`);
+        }
+        if (body.success === false || body.code !== 0) {
+            throw new Error(body.message || "请求失败");
+        }
+        return body.data;
+    }
+
+    function parseSources(text) {
+        const lines = String(text || "")
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+        if (!lines.length) {
+            throw new Error("训练来源不能为空");
+        }
+
+        return lines.map((line, index) => {
+            const separatorIndex = line.indexOf("|");
+            if (separatorIndex < 1 || separatorIndex === line.length - 1) {
+                throw new Error(`第 ${index + 1} 行格式不正确，必须是 类型|值`);
+            }
+            return {
+                sourceType: line.slice(0, separatorIndex).trim(),
+                sourceValue: line.slice(separatorIndex + 1).trim()
+            };
+        });
+    }
+
+    function updateTrainingState(data) {
+        if (!data) {
+            return;
+        }
+        if (data.expertId) {
+            state.expertId = String(data.expertId);
+        }
+        if (data.taskId) {
+            state.trainingTaskId = data.taskId;
+        }
+        if (data.sessionId) {
+            state.sessionId = data.sessionId;
+        }
+        if (data.releaseTaskId) {
+            state.releaseTaskId = data.releaseTaskId;
+        }
+        saveState();
+    }
+
+    function updateReleaseState(data) {
+        if (!data) {
+            return;
+        }
+        if (data.expertId) {
+            state.expertId = String(data.expertId);
+        }
+        if (data.taskId) {
+            state.releaseTaskId = data.taskId;
+        }
+        saveState();
+    }
+
+    async function downloadPackage(expertId) {
+        const response = await fetch(buildUrl("/api/v1/experts/package/download"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expertId: Number(expertId) })
+        });
+        const contentType = response.headers.get("content-type") || "";
+        if (!response.ok && contentType.includes("application/json")) {
+            const body = await response.json();
+            appendLog("下载专家压缩包失败", body);
+            throw new Error(body.message || `HTTP ${response.status}`);
+        }
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = downloadUrl;
+        anchor.download = `${expertId}.zip`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(downloadUrl);
+        appendLog("下载专家压缩包成功", { expertId });
+    }
+
+    document.getElementById("save-settings").addEventListener("click", () => {
+        state.apiBase = document.getElementById("api-base").value.trim();
+        saveState();
+        appendLog("保存设置成功", state);
+    });
+
+    document.getElementById("clear-console").addEventListener("click", () => {
+        consoleEl.textContent = "控制台已清空。";
+    });
+
+    document.getElementById("create-expert-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const payload = {
+            name: String(formData.get("name") || "").trim(),
+            description: String(formData.get("description") || "").trim()
+        };
+
+        try {
+            const data = await apiRequest("/api/v1/experts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            state.expertId = String(data.id);
+            saveState();
+            appendLog("创建专家成功", data);
+        } catch (error) {
+            appendLog("创建专家失败", error.message);
+        }
+    });
+
+    document.getElementById("training-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        const expertId = String(formData.get("expertId") || "").trim();
+        const payload = {
+            expertId: Number(expertId),
+            trainingGoal: String(formData.get("trainingGoal") || "").trim(),
+            sources: parseSources(formData.get("sources"))
+        };
+
+        try {
+            const data = await apiRequest("/api/v1/experts/training-tasks/submit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            updateTrainingState(data);
+            appendLog("提交训练任务成功", data);
+        } catch (error) {
+            appendLog("提交训练任务失败", error.message);
+        }
+    });
+
+    document.getElementById("query-training-task").addEventListener("click", async () => {
+        const expertId = state.expertId || document.getElementById("training-expert-id").value.trim();
+        const taskId = state.trainingTaskId || prompt("输入训练任务 ID");
+        if (!expertId || !taskId) {
+            appendLog("查询训练任务失败", "缺少 expertId 或 taskId");
+            return;
+        }
+
+        try {
+            const data = await apiRequest("/api/v1/experts/training-tasks/detail", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ expertId: Number(expertId), taskId })
+            });
+            updateTrainingState(data);
+            appendLog("查询训练任务成功", data);
+        } catch (error) {
+            appendLog("查询训练任务失败", error.message);
+        }
+    });
+
+    document.getElementById("submit-release").addEventListener("click", async () => {
+        const expertId = document.getElementById("release-expert-id").value.trim() || state.expertId;
+        if (!expertId) {
+            appendLog("创建发布任务失败", "缺少 expertId");
+            return;
+        }
+
+        try {
+            const data = await apiRequest("/api/v1/experts/release-tasks/submit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ expertId: Number(expertId) })
+            });
+            updateReleaseState(data);
+            appendLog("创建发布任务成功", data);
+        } catch (error) {
+            appendLog("创建发布任务失败", error.message);
+        }
+    });
+
+    document.getElementById("query-release-task").addEventListener("click", async () => {
+        const expertId = document.getElementById("release-expert-id").value.trim() || state.expertId;
+        const taskId = document.getElementById("release-task-id").value.trim() || state.releaseTaskId;
+        if (!expertId || !taskId) {
+            appendLog("查询发布任务失败", "缺少 expertId 或 releaseTaskId");
+            return;
+        }
+
+        try {
+            const data = await apiRequest("/api/v1/experts/release-tasks/detail", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ expertId: Number(expertId), taskId })
+            });
+            updateReleaseState(data);
+            appendLog("查询发布任务成功", data);
+        } catch (error) {
+            appendLog("查询发布任务失败", error.message);
+        }
+    });
+
+    document.getElementById("query-config").addEventListener("click", async () => {
+        const expertId = document.getElementById("release-expert-id").value.trim() || state.expertId;
+        if (!expertId) {
+            appendLog("查询当前配置失败", "缺少 expertId");
+            return;
+        }
+
+        try {
+            const data = await apiRequest("/api/v1/experts/config/detail", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ expertId: Number(expertId) })
+            });
+            appendLog("查询当前配置成功", data);
+        } catch (error) {
+            appendLog("查询当前配置失败", error.message);
+        }
+    });
+
+    document.getElementById("download-package").addEventListener("click", async () => {
+        const expertId = document.getElementById("release-expert-id").value.trim() || state.expertId;
+        if (!expertId) {
+            appendLog("下载专家压缩包失败", "缺少 expertId");
+            return;
+        }
+
+        try {
+            await downloadPackage(expertId);
+        } catch (error) {
+            appendLog("下载专家压缩包失败", error.message);
+        }
+    });
+
+    loadState();
+    renderState();
+</script>
+</body>
+</html>

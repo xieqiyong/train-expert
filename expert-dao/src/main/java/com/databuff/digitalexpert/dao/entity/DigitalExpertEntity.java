@@ -20,6 +20,9 @@ public class DigitalExpertEntity {
     private String zipPackagePath;
     private String lastReleaseTaskId;
     private Integer releaseVersion;
+    private String lastTrainingTaskId;
+    private Integer trainingVersion;
+    private String lastTrainingSessionId;
     private LocalDateTime startedAt;
     private LocalDateTime disabledAt;
     private LocalDateTime createdAt;
