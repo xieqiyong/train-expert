@@ -31,7 +31,10 @@ public class TrainingProxyClientImpl implements TrainingProxyClient {
      * 提交训练任务
      */
     @Override
-    public ProxySubmitResult submitTraining(String taskId, String prompt, List<String> filePaths, String outputDir) {
+    public ProxySubmitResult submitTraining(String taskId,
+                                            String prompt,
+                                            List<String> filePaths,
+                                            String outputDir) {
 
         Map<String, Object> requestBody = Map.of(
                 "userSessionId", taskId,
@@ -90,25 +93,9 @@ public class TrainingProxyClientImpl implements TrainingProxyClient {
         if ("true".equalsIgnoreCase(trimmed) || "false".equalsIgnoreCase(trimmed)) {
             return Boolean.parseBoolean(trimmed);
         }
-        JSONObject root = parseJsonResponse(ProxyApiType.SESSION_FINISHED, response);
-        // 多种字段兼容解析
-        Boolean finished = root.getBoolean("finished");
-        if (finished != null) return finished;
-        finished = root.getBoolean("isFinished");
-        if (finished != null) return finished;
-        finished = root.getBoolean("data");
-        if (finished != null) return finished;
-        JSONObject data = root.getJSONObject("data");
-        if (data != null) {
-            finished = data.getBoolean("finished");
-            if (finished != null) return finished;
-
-            finished = data.getBoolean("isFinished");
-            if (finished != null) return finished;
-        }
         throw BusinessException.badRequest(
                 ErrorCode.TRAINING_PROXY_REQUEST_FAILED,
-                "会话状态接口响应中未找到 finished 标识"
+                "会话状态接口响应调用失败!"
         );
     }
 

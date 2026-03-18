@@ -20,7 +20,7 @@ spring:
       date-time: yyyy-MM-dd HH:mm:ss
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:19008}
 
 mybatis-plus:
   configuration:
@@ -29,7 +29,21 @@ mybatis-plus:
     banner: false
 
 digital-expert:
-  shared-root: ./data/shared
+  # 共享文件存储目录
+  shared-root: /data/dc/dcgl
+  training:
+    # 训练产物输出目录
+    output-root: /root/skills
+    # 代理可访问的规范 skill 目录
+    spec-skill-path: /root/skills/skills/root-skills-creator/
+    # 训练任务轮询间隔，单位毫秒
+    poll-interval-ms: 5000
+    # chat 提交后，轮询会话结束接口的最长等待时间，默认 30 分钟
+    session-timeout-ms: 1800000
+    # 会话结束后的产物缓冲时间，默认 2 分钟
+    artifact-grace-period-ms: 120000
+    # 发布阶段最长等待时间，默认 30 分钟
+    release-timeout-ms: 1800000
   proxy:
     timeout-ms: 15000
     base-url: http://192.168.50.18:19300

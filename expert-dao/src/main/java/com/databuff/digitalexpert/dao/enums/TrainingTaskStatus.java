@@ -22,6 +22,7 @@ public enum TrainingTaskStatus {
 
     private static final List<String> POLLING_STATUSES = List.of(
             RUNNING.name(),
+            VERIFYING_ARTIFACTS.name(),
             RELEASING.name()
     );
 

@@ -43,14 +43,6 @@ public class SharedStorageService {
         return resolveExpertRoot(expertId).resolve("staging").resolve(taskId).normalize();
     }
 
-    public Path resolveExpertTrainingDirectory(Long expertId, String taskId) {
-        return resolveExpertRoot(expertId).resolve("training").resolve(taskId).normalize();
-    }
-
-    public Path resolveExpertTrainingOutputDirectory(Long expertId, String taskId) {
-        return resolveExpertTrainingDirectory(expertId, taskId).resolve("generated-skills").normalize();
-    }
-
     public void recreateDirectory(Path directory) {
         deleteRecursively(directory);
         createDirectories(directory);

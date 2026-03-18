@@ -27,6 +27,7 @@ public class ZipArchiveService {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("(?m)^name\\s*:\\s*(.+?)\\s*$");
     private static final Pattern DESCRIPTION_PATTERN = Pattern.compile("(?m)^description\\s*:\\s*(.+?)\\s*$");
+    private static final String SKILL_FILE_NAME = "SKILL.md";
 
     public SkillArchiveMetadata inspectSkillArchive(byte[] archiveBytes, String originalFilename) {
         if (archiveBytes == null || archiveBytes.length == 0) {
@@ -118,10 +119,21 @@ public class ZipArchiveService {
     private String extractSkillMd(byte[] archiveBytes) {
         try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(archiveBytes), StandardCharsets.UTF_8)) {
             ZipEntry entry;
+            String fallbackSkillMd = null;
             while ((entry = zipInputStream.getNextEntry()) != null) {
-                if (!entry.isDirectory() && entry.getName().replace("\\", "/").endsWith("SKILL.md")) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String entryName = entry.getName().replace("\\", "/");
+                if (SKILL_FILE_NAME.equals(entryName)) {
                     return new String(zipInputStream.readAllBytes(), StandardCharsets.UTF_8);
                 }
+                if (fallbackSkillMd == null && entryName.endsWith("/" + SKILL_FILE_NAME)) {
+                    fallbackSkillMd = new String(zipInputStream.readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+            if (fallbackSkillMd != null) {
+                return fallbackSkillMd;
             }
         } catch (IOException ex) {
             throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能 zip 包无效");
