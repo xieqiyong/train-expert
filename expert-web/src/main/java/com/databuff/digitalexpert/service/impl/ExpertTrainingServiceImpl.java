@@ -33,7 +33,7 @@ import com.databuff.digitalexpert.service.proxy.TrainingProxyClient;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
 import com.databuff.digitalexpert.service.storage.SkillArchiveMetadata;
 import com.databuff.digitalexpert.service.storage.ZipArchiveService;
-import com.databuff.digitalexpert.util.AgentSessionId;
+import com.databuff.digitalexpert.util.TaskIdGenerator;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -104,7 +104,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
 
         List<TrainingSourceRequest> normalizedSources = normalizeSources(request.sources());
-        String taskId = AgentSessionId.generate();
+        String taskId = TaskIdGenerator.nextTrainingTaskId();
         Path outputDirectory = resolveTrainingOutputDirectory(expertId, taskId);
 
         LocalDateTime now = LocalDateTime.now();
@@ -668,7 +668,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED,
                     "训练过程中专家被禁用");
         }
-        expert.setStatus(ExpertStatus.TRAINING.name());
+        if (!ExpertStatus.STARTED.name().equals(expert.getStatus())) {
+            expert.setStatus(ExpertStatus.TRAINING.name());
+        }
         expert.setLastTrainingTaskId(taskId);
         expert.setUpdatedAt(LocalDateTime.now());
         digitalExpertMapper.updateById(expert);

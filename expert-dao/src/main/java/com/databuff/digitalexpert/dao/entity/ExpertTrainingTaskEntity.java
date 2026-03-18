@@ -15,7 +15,6 @@ public class ExpertTrainingTaskEntity {
     private String taskId;
     private Long expertId;
     private String status;
-    private String activeTaskKey;
     private String previousExpertStatus;
     private String sessionId;
     private String submitRequestId;

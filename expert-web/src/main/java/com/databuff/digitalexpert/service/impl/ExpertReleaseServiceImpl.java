@@ -31,18 +31,17 @@ import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.storage.PackagedFile;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
 import com.databuff.digitalexpert.service.storage.ZipArchiveService;
+import com.databuff.digitalexpert.util.TaskIdGenerator;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,22 +83,14 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
 
         LocalDateTime now = LocalDateTime.now();
         ExpertReleaseTaskEntity entity = new ExpertReleaseTaskEntity();
-        entity.setTaskId(UUID.randomUUID().toString().replace("-", ""));
+        entity.setTaskId(TaskIdGenerator.nextReleaseTaskId());
         entity.setExpertId(expertId);
         entity.setStatus(ReleaseTaskStatus.PENDING.name());
         entity.setTriggerType(TriggerType.MANUAL.name());
-        entity.setActiveTaskKey(String.valueOf(expertId));
         entity.setRequestedAt(now);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
-        try {
-            expertReleaseTaskMapper.insert(entity);
-        } catch (DuplicateKeyException ex) {
-            throw BusinessException.conflict(
-                    ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
-                    "专家存在进行中的发布任务: " + expertId
-            );
-        }
+        expertReleaseTaskMapper.insert(entity);
         releaseTaskExecutor.execute(() -> runTask(entity.getTaskId()));
         return toResponse(entity);
     }
@@ -136,7 +127,8 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
 
             Path currentDirectory = sharedStorageService.resolveExpertCurrentDirectory(expert.getId());
             Path currentConfigPath = currentDirectory.resolve("expert-config.json");
-            Path currentZipPath = currentDirectory.resolve(expert.getId() + ".zip");
+            String expertPackageFileName = resolveExpertPackageFileName(expert);
+            Path currentZipPath = currentDirectory.resolve(expertPackageFileName);
             ExpertConfigResponse configResponse = buildConfig(
                     expert,
                     currentDirectory,
@@ -149,7 +141,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
 
             Path stagingConfigPath = stagingDirectory.resolve("expert-config.json");
             writeJson(stagingConfigPath, configResponse);
-            Path stagingZipPath = stagingDirectory.resolve(expert.getId() + ".zip");
+            Path stagingZipPath = stagingDirectory.resolve(expertPackageFileName);
             zipArchiveService.buildExpertPackage(
                     stagingZipPath,
                     stagingConfigPath,
@@ -196,7 +188,6 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
     private void markTaskSuccess(ExpertReleaseTaskEntity task, Path configPath, Path zipPath) {
         LocalDateTime now = LocalDateTime.now();
         task.setStatus(ReleaseTaskStatus.SUCCEEDED.name());
-        task.setActiveTaskKey(null);
         task.setConfigJsonPath(sharedStorageService.toStoragePath(configPath));
         task.setZipPackagePath(sharedStorageService.toStoragePath(zipPath));
         task.setFinishedAt(now);
@@ -208,7 +199,6 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
         ExpertReleaseTaskEntity task = requireTask(taskId);
         LocalDateTime now = LocalDateTime.now();
         task.setStatus(ReleaseTaskStatus.FAILED.name());
-        task.setActiveTaskKey(null);
         task.setFailureReason(truncateFailureReason(failureReason));
         task.setFinishedAt(now);
         task.setUpdatedAt(now);
@@ -348,7 +338,10 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
 
     private List<PackagedFile> toPackagedSkillFiles(List<SkillPackageEntity> skillPackages) {
         return skillPackages.stream()
-                .map(entity -> new PackagedFile("skills/" + entity.getPackageName(), Path.of(entity.getPackagePath())))
+                .map(entity -> new PackagedFile(
+                        "skills/" + resolveArchiveDirectoryName(entity.getPackageName()),
+                        Path.of(entity.getPackagePath())
+                ))
                 .toList();
     }
 
@@ -384,5 +377,31 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             return "Unknown failure";
         }
         return failureReason.length() > 1800 ? failureReason.substring(0, 1800) : failureReason;
+    }
+
+    private String resolveExpertPackageFileName(DigitalExpertEntity expert) {
+        return expert.getId() + ".zip";
+    }
+
+    private String resolveArchiveDirectoryName(String fileName) {
+        if (fileName == null) {
+            return "package";
+        }
+        int dotIndex = fileName.lastIndexOf('.');
+        String baseName = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+        String normalized = normalizeArchiveName(baseName);
+        return normalized == null ? "package" : normalized;
+    }
+
+    private String normalizeArchiveName(String rawName) {
+        if (rawName == null || rawName.isBlank()) {
+            return null;
+        }
+        String normalized = rawName.trim()
+                .replaceAll("[^\\p{L}\\p{N}._-]", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^[._-]+", "")
+                .replaceAll("[._-]+$", "");
+        return normalized.isBlank() ? null : normalized;
     }
 }

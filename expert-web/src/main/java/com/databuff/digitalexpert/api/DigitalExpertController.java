@@ -19,6 +19,7 @@ import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.ExpertTrainingService;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import lombok.RequiredArgsConstructor;
@@ -104,7 +105,7 @@ public class DigitalExpertController {
         try {
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                            .filename(zipPath.getFileName().toString())
+                            .filename(zipPath.getFileName().toString(), StandardCharsets.UTF_8)
                             .build().toString())
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .contentLength(resource.contentLength())

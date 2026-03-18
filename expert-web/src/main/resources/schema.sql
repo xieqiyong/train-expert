@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS `expert_release_task` (
   `expert_id` bigint NOT NULL COMMENT '专家ID',
   `status` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务状态：PENDING/RUNNING/SUCCEEDED/FAILED',
   `trigger_type` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '触发方式',
-  `active_task_key` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '预留字段',
   `staging_path` text COLLATE utf8mb4_unicode_ci COMMENT '发布暂存目录',
   `config_json_path` text COLLATE utf8mb4_unicode_ci COMMENT '生成的配置文件路径',
   `zip_package_path` text COLLATE utf8mb4_unicode_ci COMMENT '生成的压缩包路径',
@@ -56,7 +55,6 @@ CREATE TABLE IF NOT EXISTS `expert_release_task` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_release_task_id` (`task_id`),
-  UNIQUE KEY `uk_release_active_task` (`active_task_key`),
   KEY `idx_release_task_expert_id` (`expert_id`),
   KEY `idx_release_task_status` (`status`),
   KEY `idx_release_task_expert_status` (`expert_id`,`status`)
@@ -69,7 +67,6 @@ CREATE TABLE IF NOT EXISTS `expert_training_task` (
   `task_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务唯一ID',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
   `status` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务状态：PENDING/RUNNING/VERIFYING_ARTIFACTS/IMPORTING_SKILLS/RELEASING/SUCCEEDED/FAILED/TIMEOUT',
-  `active_task_key` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '预留字段',
   `previous_expert_status` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '训练前专家状态',
   `session_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '上游会话ID',
   `submit_request_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '上游请求ID',

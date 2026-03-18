@@ -16,7 +16,6 @@ public class ExpertReleaseTaskEntity {
     private Long expertId;
     private String status;
     private String triggerType;
-    private String activeTaskKey;
     private String stagingPath;
     private String configJsonPath;
     private String zipPackagePath;
@@ -27,4 +26,3 @@ public class ExpertReleaseTaskEntity {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-
