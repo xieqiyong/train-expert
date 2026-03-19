@@ -14,6 +14,7 @@ public class DigitalExpertEntity {
     private Long id;
     private String name;
     private String description;
+    private String prompt;
     private String status;
     private String sharedPath;
     private String configJsonPath;

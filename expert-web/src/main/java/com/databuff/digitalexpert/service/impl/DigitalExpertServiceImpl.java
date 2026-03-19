@@ -1,13 +1,17 @@
 package com.databuff.digitalexpert.service.impl;
 
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
+import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
+import com.databuff.digitalexpert.dao.dto.SkillPackageResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
@@ -27,6 +31,7 @@ import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
 import com.databuff.digitalexpert.service.DigitalExpertService;
 import com.databuff.digitalexpert.service.ExpertConfigService;
+import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.SkillPackageService;
 import com.databuff.digitalexpert.service.StaticPackageService;
 import java.net.URI;
@@ -37,32 +42,24 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class DigitalExpertServiceImpl implements DigitalExpertService {
 
-    @Autowired
-    private DigitalExpertMapper digitalExpertMapper;
-    @Autowired
-    private ExpertSkillBindingMapper expertSkillBindingMapper;
-    @Autowired
-    private ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
-    @Autowired
-    private ExpertMcpBindingMapper expertMcpBindingMapper;
-    @Autowired
-    private ExpertReleaseTaskMapper expertReleaseTaskMapper;
-    @Autowired
-    private ExpertTrainingTaskMapper expertTrainingTaskMapper;
-    @Autowired
-    private SkillPackageService skillPackageService;
-    @Autowired
-    private StaticPackageService staticPackageService;
-    @Autowired
-    private ExpertConfigService expertConfigService;
+    private final DigitalExpertMapper digitalExpertMapper;
+    private final ExpertSkillBindingMapper expertSkillBindingMapper;
+    private final ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
+    private final ExpertMcpBindingMapper expertMcpBindingMapper;
+    private final ExpertReleaseTaskMapper expertReleaseTaskMapper;
+    private final ExpertTrainingTaskMapper expertTrainingTaskMapper;
+    private final SkillPackageService skillPackageService;
+    private final StaticPackageService staticPackageService;
+    private final ExpertConfigService expertConfigService;
+    private final ExpertReleaseService expertReleaseService;
 
     @Override
     @Transactional
@@ -72,13 +69,47 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         LocalDateTime now = LocalDateTime.now();
         DigitalExpertEntity entity = new DigitalExpertEntity();
         entity.setName(name);
-        entity.setDescription(request.description());
+        entity.setDescription(normalizeOptionalText(request.description()));
+        entity.setPrompt(normalizeOptionalText(request.prompt()));
         entity.setStatus(ExpertStatus.DRAFT.name());
         entity.setReleaseVersion(0);
+        entity.setTrainingVersion(0);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         digitalExpertMapper.insert(entity);
         return toSummary(entity);
+    }
+
+    @Override
+    @Transactional
+    public ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles) {
+        List<MultipartFile> normalizedFiles = normalizeSkillFiles(skillFiles);
+        if (normalizedFiles.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能文件不能为空");
+        }
+
+        ExpertSummaryResponse expert = createExpert(new CreateExpertRequest(
+                request.name(),
+                request.description(),
+                request.prompt()
+        ));
+
+        List<SkillPackageResponse> uploadedSkills = new ArrayList<>();
+        for (MultipartFile skillFile : normalizedFiles) {
+            uploadedSkills.add(skillPackageService.upload(skillFile));
+        }
+
+        updateBindings(expert.id(), new UpdateExpertBindingsRequest(
+                uploadedSkills.stream().map(SkillPackageResponse::id).toList(),
+                List.of(),
+                request.mcps()
+        ));
+
+        ExpertReleaseTaskResponse releaseTask = null;
+        if (request.autoRelease()) {
+            releaseTask = expertReleaseService.submitReleaseTask(expert.id());
+        }
+        return new ManualCreateExpertResponse(expert, uploadedSkills, releaseTask);
     }
 
     @Override
@@ -199,6 +230,14 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         return normalized;
     }
 
+    private String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
     private ExpertSummaryResponse toSummary(DigitalExpertEntity entity) {
         return new ExpertSummaryResponse(
                 entity.getId(),
@@ -227,9 +266,20 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         }
         List<McpBindingRequest> result = new ArrayList<>();
         for (McpBindingRequest mcp : mcps) {
-            if (mcp != null) {
-                result.add(mcp);
+            if (mcp == null) {
+                continue;
             }
+            List<String> toolWhitelist = mcp.toolWhitelist() == null
+                    ? List.of()
+                    : mcp.toolWhitelist().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .toList();
+            result.add(new McpBindingRequest(
+                    normalizeOptionalText(mcp.bindingName()),
+                    normalizeOptionalText(mcp.mcpUrl()),
+                    toolWhitelist
+            ));
         }
         return result;
     }
@@ -237,6 +287,12 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     private void validateMcpBindings(List<McpBindingRequest> mcps) {
         Set<String> bindingNames = new LinkedHashSet<>();
         for (McpBindingRequest mcp : mcps) {
+            if (mcp.bindingName() == null || mcp.bindingName().isBlank()) {
+                throw BusinessException.badRequest(ErrorCode.MCP_BINDING_INVALID, "MCP 绑定名称不能为空");
+            }
+            if (mcp.mcpUrl() == null || mcp.mcpUrl().isBlank()) {
+                throw BusinessException.badRequest(ErrorCode.MCP_BINDING_INVALID, "MCP 地址不能为空");
+            }
             if (!bindingNames.add(mcp.bindingName())) {
                 throw BusinessException.badRequest(
                         ErrorCode.MCP_BINDING_INVALID,
@@ -250,7 +306,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                         "MCP 地址不合法: " + mcp.mcpUrl()
                 );
             }
-            if (mcp.toolWhitelist().stream().filter(Objects::nonNull).map(String::trim).anyMatch(String::isBlank)) {
+            List<String> toolWhitelist = mcp.toolWhitelist() == null ? List.of() : mcp.toolWhitelist();
+            if (toolWhitelist.stream().filter(Objects::nonNull).map(String::trim).anyMatch(String::isBlank)) {
                 throw BusinessException.badRequest(
                         ErrorCode.MCP_BINDING_INVALID,
                         "工具白名单包含空白项"
@@ -261,9 +318,19 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     private String writeWhitelist(List<String> whitelist) {
         try {
-            return JSONObject.toJSONString(whitelist);
+            return JSON.toJSONString(whitelist == null ? List.of() : whitelist);
         } catch (Exception ex) {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "序列化 MCP 工具白名单失败");
         }
+    }
+
+    private List<MultipartFile> normalizeSkillFiles(List<MultipartFile> skillFiles) {
+        if (skillFiles == null || skillFiles.isEmpty()) {
+            return List.of();
+        }
+        return skillFiles.stream()
+                .filter(Objects::nonNull)
+                .filter(file -> !file.isEmpty())
+                .toList();
     }
 }

@@ -1,6 +1,8 @@
 package com.databuff.digitalexpert.api;
 
+import com.alibaba.fastjson2.JSON;
 import com.databuff.digitalexpert.common.BusinessException;
+import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertConfigResponse;
@@ -9,6 +11,8 @@ import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertTaskRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
+import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
+import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitExpertTrainingTaskRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsCommand;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
@@ -22,6 +26,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.ContentDisposition;
@@ -29,10 +34,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @Validated
 @RestController
@@ -48,6 +56,25 @@ public class DigitalExpertController {
     @PostMapping
     public ApiResponse<ExpertSummaryResponse> createExpert(@Valid @RequestBody CreateExpertRequest request) {
         return ApiResponse.success(digitalExpertService.createExpert(request));
+    }
+
+    @PostMapping(value = "/manual/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ManualCreateExpertResponse> createManualExpert(@RequestParam("name") String name,
+                                                                      @RequestParam(value = "description", required = false) String description,
+                                                                      @RequestParam(value = "prompt", required = false) String prompt,
+                                                                      @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
+                                                                      @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease,
+                                                                      @RequestPart("skillFiles") List<MultipartFile> skillFiles) {
+        return ApiResponse.success(digitalExpertService.createManualExpert(
+                new CreateManualExpertRequest(
+                        name,
+                        description,
+                        prompt,
+                        parseMcpsJson(mcpsJson),
+                        autoRelease
+                ),
+                skillFiles
+        ));
     }
 
     @PostMapping("/bindings/update")
@@ -121,5 +148,17 @@ public class DigitalExpertController {
     @PostMapping("/disable")
     public ApiResponse<ExpertSummaryResponse> disable(@Valid @RequestBody ExpertIdRequest request) {
         return ApiResponse.success(digitalExpertService.disableExpert(request.expertId()));
+    }
+
+    private List<McpBindingRequest> parseMcpsJson(String mcpsJson) {
+        if (mcpsJson == null || mcpsJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<McpBindingRequest> result = JSON.parseArray(mcpsJson, McpBindingRequest.class);
+            return result == null ? List.of() : result;
+        } catch (Exception ex) {
+            throw BusinessException.badRequest(ErrorCode.MCP_BINDING_INVALID, "MCP 配置 JSON 格式不正确");
+        }
     }
 }

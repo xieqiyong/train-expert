@@ -296,6 +296,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
                 expert.getId(),
                 expert.getName(),
                 expert.getDescription(),
+                expert.getPrompt(),
                 ExpertStatus.STARTED.name(),
                 sharedStorageService.toStoragePath(currentDirectory),
                 sharedStorageService.toStoragePath(currentConfigPath),
@@ -355,7 +356,11 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
     }
 
     private List<String> parseToolWhitelist(String toolWhitelistJson) {
-        return JSON.parseArray(toolWhitelistJson, String.class);
+        if (toolWhitelistJson == null || toolWhitelistJson.isBlank()) {
+            return List.of();
+        }
+        List<String> result = JSON.parseArray(toolWhitelistJson, String.class);
+        return result == null ? List.of() : result;
     }
 
     private ExpertReleaseTaskResponse toResponse(ExpertReleaseTaskEntity entity) {

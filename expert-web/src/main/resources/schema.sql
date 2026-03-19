@@ -145,3 +145,5 @@ CREATE TABLE IF NOT EXISTS `static_package` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='静态资源包';
+
+ALTER TABLE digital_expert ADD COLUMN prompt TEXT COMMENT '专家提示词';

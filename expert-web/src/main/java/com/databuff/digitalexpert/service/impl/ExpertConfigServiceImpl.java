@@ -60,6 +60,7 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
                 expert.getId(),
                 expert.getName(),
                 expert.getDescription(),
+                expert.getPrompt(),
                 expert.getStatus(),
                 expert.getSharedPath(),
                 expert.getConfigJsonPath(),
@@ -159,6 +160,10 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
     }
 
     private List<String> parseToolWhitelist(String toolWhitelistJson) {
-        return JSON.parseArray(toolWhitelistJson, String.class);
+        if (toolWhitelistJson == null || toolWhitelistJson.isBlank()) {
+            return List.of();
+        }
+        List<String> result = JSON.parseArray(toolWhitelistJson, String.class);
+        return result == null ? List.of() : result;
     }
 }
