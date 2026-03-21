@@ -90,7 +90,7 @@ public class TrainingProxyClientImpl implements TrainingProxyClient {
         }
         String trimmed = body.trim();
         // 兼容直接返回 true/false
-        if ("true".equalsIgnoreCase(trimmed) || "false".equalsIgnoreCase(trimmed)) {
+        if (Boolean.TRUE.toString().equalsIgnoreCase(trimmed) || Boolean.FALSE.toString().equalsIgnoreCase(trimmed)) {
             return Boolean.parseBoolean(trimmed);
         }
         throw BusinessException.badRequest(

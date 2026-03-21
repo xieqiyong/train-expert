@@ -460,15 +460,15 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         StringBuilder builder = new StringBuilder();
         Path specSkillPath = resolveConfiguredSpecSkillPath();
         AppInfoSource appInfoSource = findAppInfoSource(sources);
-        builder.append("You are a digital expert training agent and must use skill-creator to generate skills.\n");
+        builder.append("请生成 1 个数字专家 skill。\n");
         if (StringUtils.hasText(trainingGoal)) {
-            builder.append("Training goal: ").append(trainingGoal.trim()).append("\n");
+            builder.append("目标: ").append(trainingGoal.trim()).append("\n");
         }
         if (appInfoSource != null) {
-            builder.append("Input directory: ").append(appInfoSource.jarsDirectory()).append("\n");
-            appendPromptLine(builder, "App name", appInfoSource.appName());
+            builder.append("输入路径: ").append(appInfoSource.jarsDirectory()).append("\n");
+            appendPromptLine(builder, "应用名", appInfoSource.appName());
         } else {
-            builder.append("Input sources:\n");
+            builder.append("输入:\n");
             for (int i = 0; i < sources.size(); i++) {
                 TrainingSourceRequest source = sources.get(i);
                 builder.append(i + 1)
@@ -480,27 +480,16 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             }
         }
 
-        builder.append("Output path: ").append(skillDirectory).append("\n")
-                .append("Constraints:\n")
-                .append("1. Spec skill path: ")
-                .append(specSkillPath == null ? "not configured" : specSkillPath)
-                .append("\n");
+        builder.append("输出路径: ").append(skillDirectory).append("\n");
         if (specSkillPath != null) {
-            builder.append("2. Read ")
-                    .append(specSkillPath.resolve("SKILL.md"))
-                    .append(" first and generate exactly one skill according to that specification.\n");
+            builder.append("规范路径: ").append(specSkillPath.resolve("SKILL.md")).append("\n");
         } else {
-            builder.append("2. Use skill-creator to generate exactly one skill.\n");
+            builder.append("规范路径: 未配置\n");
         }
-        if (appInfoSource != null) {
-            builder.append("3. Analyze the jars directory directly.\n");
-        } else {
-            builder.append("3. Generate exactly one skill from the input sources.\n");
-        }
-        builder.append("4. Only write files under the output path.\n")
-                .append("5. The skill directory name must be ").append(skillDirName).append(".\n")
-                .append("6. The output directory must contain SKILL.md.\n")
-                .append("7. Do not create any other skill directory. If generation fails, explain the reason directly.\n");
+        builder.append("要求:\n")
+                .append("1. 使用 skill-creator，按规范生成 1 个 skill。\n")
+                .append("2. 目录名必须是 ").append(skillDirName).append("，且只能写入输出路径。\n")
+                .append("3. 输出目录必须包含 SKILL.md，不要生成其他 skill。\n");
         return builder.toString();
     }
 
