@@ -19,20 +19,20 @@ public class SharedStorageService {
 
     private final ExpertProperties properties;
 
-    public Path getSharedRoot() {
-        return Paths.get(properties.getSharedRoot()).toAbsolutePath().normalize();
+    public Path getStaticPackage() {
+        return Paths.get(properties.getStaticPackage()).toAbsolutePath().normalize();
     }
 
     public Path resolveSkillDirectory(Long skillId) {
-        return getSharedRoot().resolve("skills").resolve(String.valueOf(skillId)).normalize();
+        return getStaticPackage().resolve("skills").resolve(String.valueOf(skillId)).normalize();
     }
 
     public Path resolveStaticPackageDirectory(Long staticPackageId) {
-        return getSharedRoot().resolve("static_packages").resolve(String.valueOf(staticPackageId)).normalize();
+        return getStaticPackage().resolve("static_packages").resolve(String.valueOf(staticPackageId)).normalize();
     }
 
     public Path resolveExpertRoot(Long expertId) {
-        return getSharedRoot().resolve("experts").resolve(String.valueOf(expertId)).normalize();
+        return getStaticPackage().resolve("experts").resolve(String.valueOf(expertId)).normalize();
     }
 
     public Path resolveExpertCurrentDirectory(Long expertId) {
@@ -139,7 +139,7 @@ public class SharedStorageService {
 
     private void ensureWithinSharedRoot(Path path) {
         Path normalized = path.toAbsolutePath().normalize();
-        Path root = getSharedRoot();
+        Path root = getStaticPackage();
         if (!normalized.startsWith(root)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "路径超出共享根目录");
         }

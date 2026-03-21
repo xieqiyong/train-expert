@@ -180,7 +180,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             TrainingProxyClient.ProxySubmitResult submitResult = trainingProxyClient.submitTraining(
                     taskId,
                     prompt,
-                    sources.stream().map(TrainingSourceRequest::sourceValue).toList(),
+                    resolveProxyInputPaths(sources),
                     skillDirectory.toString()
             );
 
@@ -459,37 +459,48 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                                Path skillDirectory) {
         StringBuilder builder = new StringBuilder();
         Path specSkillPath = resolveConfiguredSpecSkillPath();
-        builder.append("你是数字专家训练代理，必须调用 skill-creator 生成 skills。\n");
+        AppInfoSource appInfoSource = findAppInfoSource(sources);
+        builder.append("You are a digital expert training agent and must use skill-creator to generate skills.\n");
         if (StringUtils.hasText(trainingGoal)) {
-            builder.append("训练目标: ").append(trainingGoal.trim()).append("\n");
+            builder.append("Training goal: ").append(trainingGoal.trim()).append("\n");
         }
-        builder.append("输入源列表:\n");
-        for (int i = 0; i < sources.size(); i++) {
-            TrainingSourceRequest source = sources.get(i);
-            builder.append(i + 1)
-                    .append(". [")
-                    .append(source.sourceType())
-                    .append("] ")
-                    .append(source.sourceValue())
-                    .append("\n");
+        if (appInfoSource != null) {
+            builder.append("Input directory: ").append(appInfoSource.jarsDirectory()).append("\n");
+            appendPromptLine(builder, "App name", appInfoSource.appName());
+        } else {
+            builder.append("Input sources:\n");
+            for (int i = 0; i < sources.size(); i++) {
+                TrainingSourceRequest source = sources.get(i);
+                builder.append(i + 1)
+                        .append(". [")
+                        .append(source.sourceType())
+                        .append("] ")
+                        .append(source.sourceValue())
+                        .append("\n");
+            }
         }
 
-        builder.append("输出路径: ").append(skillDirectory).append("\n")
-                .append("约束:\n")
-                .append("1. 规范 skill 路径: ")
-                .append(specSkillPath == null ? "未配置" : specSkillPath)
+        builder.append("Output path: ").append(skillDirectory).append("\n")
+                .append("Constraints:\n")
+                .append("1. Spec skill path: ")
+                .append(specSkillPath == null ? "not configured" : specSkillPath)
                 .append("\n");
         if (specSkillPath != null) {
-            builder.append("2. 先读取 ")
+            builder.append("2. Read ")
                     .append(specSkillPath.resolve("SKILL.md"))
-                    .append("，按其中规范生成 1 个 skill。\n");
+                    .append(" first and generate exactly one skill according to that specification.\n");
         } else {
-            builder.append("2. 请调用 skill-creator 按规范生成 1 个 skill。\n");
+            builder.append("2. Use skill-creator to generate exactly one skill.\n");
         }
-        builder.append("3. 只允许在输出路径下写入内容。\n")
-                .append("4. skill 目录名必须是 ").append(skillDirName).append("。\n")
-                .append("5. 输出目录下必须包含 SKILL.md。\n")
-                .append("6. 不要生成其他 skill 目录；失败时直接说明原因。\n");
+        if (appInfoSource != null) {
+            builder.append("3. Analyze the jars directory directly.\n");
+        } else {
+            builder.append("3. Generate exactly one skill from the input sources.\n");
+        }
+        builder.append("4. Only write files under the output path.\n")
+                .append("5. The skill directory name must be ").append(skillDirName).append(".\n")
+                .append("6. The output directory must contain SKILL.md.\n")
+                .append("7. Do not create any other skill directory. If generation fails, explain the reason directly.\n");
         return builder.toString();
     }
 
@@ -566,6 +577,13 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
     private String resolveSkillDirectoryName(List<TrainingSourceRequest> sources, String taskId) {
         for (TrainingSourceRequest source : sources) {
+            AppInfoSource appInfoSource = resolveAppInfoSource(source);
+            if (appInfoSource != null && StringUtils.hasText(appInfoSource.appName())) {
+                String normalized = normalizeSkillDirectoryName(appInfoSource.appName());
+                if (StringUtils.hasText(normalized)) {
+                    return normalized;
+                }
+            }
             String fileName = extractSourceFileName(source);
             if (!StringUtils.hasText(fileName)) {
                 continue;
@@ -585,11 +603,123 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         if (TrainingSourceType.GIT_URL.name().equals(source.sourceType())) {
             return null;
         }
+        AppInfoSource appInfoSource = resolveAppInfoSource(source);
+        if (appInfoSource != null && StringUtils.hasText(appInfoSource.appName())) {
+            return appInfoSource.appName();
+        }
         if (TrainingSourceType.DOC_URL.name().equals(source.sourceType())
                 || TrainingSourceType.JAR_URL.name().equals(source.sourceType())) {
             return extractFileNameFromUrl(source.sourceValue());
         }
         return extractLastPathSegment(source.sourceValue());
+    }
+
+    private void appendPromptLine(StringBuilder builder, String label, String value) {
+        if (StringUtils.hasText(value)) {
+            builder.append(label).append(": ").append(value).append("\n");
+        }
+    }
+
+    private List<String> resolveProxyInputPaths(List<TrainingSourceRequest> sources) {
+        if (sources == null || sources.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (TrainingSourceRequest source : sources) {
+            AppInfoSource appInfoSource = resolveAppInfoSource(source);
+            if (appInfoSource != null) {
+                result.add(appInfoSource.jarsDirectory().toString());
+                continue;
+            }
+            result.add(source.sourceValue());
+        }
+        return result;
+    }
+
+    private AppInfoSource findAppInfoSource(List<TrainingSourceRequest> sources) {
+        if (sources == null || sources.isEmpty()) {
+            return null;
+        }
+        for (TrainingSourceRequest source : sources) {
+            AppInfoSource appInfoSource = resolveAppInfoSource(source);
+            if (appInfoSource != null) {
+                return appInfoSource;
+            }
+        }
+        return null;
+    }
+
+    private AppInfoSource resolveAppInfoSource(TrainingSourceRequest source) {
+        if (source == null
+                || !TrainingSourceType.LOCAL_PATH.name().equals(source.sourceType())
+                || !StringUtils.hasText(source.sourceValue())) {
+            return null;
+        }
+        try {
+            Path appInfoDirectory = Path.of(source.sourceValue()).normalize();
+            String expectedDirName = properties.getTraining().getKafka().getAppInfoDirName();
+            if (StringUtils.hasText(expectedDirName)
+                    && appInfoDirectory.getFileName() != null
+                    && !expectedDirName.equals(appInfoDirectory.getFileName().toString())
+                    && !Files.exists(appInfoDirectory.resolve("app.json"))
+                    && !Files.exists(appInfoDirectory.resolve("jars"))) {
+                return null;
+            }
+
+            Path appJsonPath = appInfoDirectory.resolve("app.json");
+            Path jarsDirectory = appInfoDirectory.resolve("jars");
+            if (!Files.isRegularFile(appJsonPath) || !Files.isDirectory(jarsDirectory) || !containsJarFile(jarsDirectory)) {
+                return null;
+            }
+            JSONObject appInfoJson = readJsonObject(appJsonPath);
+            String appName = resolveAppName(appInfoDirectory, appInfoJson);
+            return new AppInfoSource(appInfoDirectory, jarsDirectory, appName);
+        } catch (Exception ex) {
+            log.warn("Resolve app_info training source failed, sourceValue={}", source.sourceValue(), ex);
+            return null;
+        }
+    }
+
+    private boolean containsJarFile(Path jarsDirectory) {
+        try (var stream = Files.list(jarsDirectory)) {
+            return stream.anyMatch(path -> Files.isRegularFile(path)
+                    && path.getFileName() != null
+                    && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"));
+        } catch (IOException ex) {
+            log.warn("Check jars directory failed, path={}", jarsDirectory, ex);
+            return false;
+        }
+    }
+
+    private JSONObject readJsonObject(Path path) {
+        try {
+            return JSON.parseObject(Files.readString(path), JSONObject.class);
+        } catch (Exception ex) {
+            log.warn("Read JSON file failed, path={}", path, ex);
+            return null;
+        }
+    }
+
+    private String resolveAppName(Path appInfoDirectory, JSONObject appInfoJson) {
+        Path timestampDirectory = appInfoDirectory.getParent();
+        Path appNameDirectory = timestampDirectory == null ? null : timestampDirectory.getParent();
+        if (appNameDirectory != null && appNameDirectory.getFileName() != null) {
+            String appName = appNameDirectory.getFileName().toString();
+            if (StringUtils.hasText(appName)) {
+                return appName;
+            }
+        }
+        if (appInfoJson != null) {
+            String serviceName = appInfoJson.getString("serviceName");
+            if (StringUtils.hasText(serviceName)) {
+                int separatorIndex = serviceName.lastIndexOf("::");
+                if (separatorIndex >= 0 && separatorIndex < serviceName.length() - 2) {
+                    return serviceName.substring(separatorIndex + 2);
+                }
+                return serviceName;
+            }
+        }
+        return extractLastPathSegment(appInfoDirectory.toString());
     }
 
     private String extractFileNameFromUrl(String value) {
@@ -920,5 +1050,12 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 entity.getStartedAt(),
                 entity.getFinishedAt()
         );
+    }
+
+    private record AppInfoSource(
+            Path appInfoDirectory,
+            Path jarsDirectory,
+            String appName
+    ) {
     }
 }

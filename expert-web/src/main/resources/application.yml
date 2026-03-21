@@ -18,6 +18,15 @@ spring:
       date: yyyy-MM-dd
       time: HH:mm:ss
       date-time: yyyy-MM-dd HH:mm:ss
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+    consumer:
+      auto-offset-reset: latest
+      enable-auto-commit: true
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      missing-topics-fatal: false
 
 server:
   port: ${SERVER_PORT:19008}
@@ -29,21 +38,19 @@ mybatis-plus:
     banner: false
 
 digital-expert:
-  # 共享文件存储目录
-  shared-root: /data/dc/dcgl
   training:
-    # 训练产物输出目录
-    output-root: /root/skills
-    # 代理可访问的规范 skill 目录
-    spec-skill-path: /root/skills/skills/root-skills-creator/
-    # 训练任务轮询间隔，单位毫秒
+    output-root: /var/dacheng/agent/output/
+    spec-skill-path: /expert-web/root-skills-creator/
     poll-interval-ms: 5000
-    # chat 提交后，轮询会话结束接口的最长等待时间，默认 30 分钟
     session-timeout-ms: 1800000
-    # 会话结束后的产物缓冲时间，默认 2 分钟
     artifact-grace-period-ms: 120000
-    # 发布阶段最长等待时间，默认 30 分钟
     release-timeout-ms: 1800000
+    kafka:
+      enabled: ${DIGITAL_EXPERT_TRAINING_KAFKA_ENABLED:false}
+      topic: ${DIGITAL_EXPERT_TRAINING_KAFKA_TOPIC:dc_expert_file}
+      group-id: ${DIGITAL_EXPERT_TRAINING_KAFKA_GROUP_ID:digital-expert-training}
+      app-info-dir-name: ${DIGITAL_EXPERT_TRAINING_KAFKA_APP_INFO_DIR_NAME:app_info}
   proxy:
     timeout-ms: 15000
     base-url: http://192.168.50.18:19300
+  static-package: /var/dacheng/upload/static

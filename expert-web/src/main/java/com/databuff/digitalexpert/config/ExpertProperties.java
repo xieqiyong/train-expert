@@ -18,7 +18,7 @@ public class ExpertProperties {
      * 共享存储根目录。
      * 主要用于技能包、静态资源包、专家发布产物等共享文件。
      */
-    private String sharedRoot = "./data/shared";
+    private String staticPackage;
 
     /**
      * 发布相关配置。
@@ -121,6 +121,39 @@ public class ExpertProperties {
          */
         @Min(1000)
         private int releaseTimeoutMs = 30 * 60 * 1000;
+
+        /**
+         * Kafka 自动触发训练配置。
+         */
+        private Kafka kafka = new Kafka();
+    }
+
+    @Getter
+    @Setter
+    public static class Kafka {
+
+        /**
+         * 是否启用 Kafka 自动训练消费。
+         */
+        private boolean enabled = false;
+
+        /**
+         * 上传服务发送训练消息的 Topic。
+         */
+        @NotBlank
+        private String topic = "dc_expert_file";
+
+        /**
+         * 训练消费者分组。
+         */
+        @NotBlank
+        private String groupId = "digital-expert-training";
+
+        /**
+         * 上传文件解压后的应用目录名称。
+         */
+        @NotBlank
+        private String appInfoDirName = "app_info";
     }
 
     @Getter
