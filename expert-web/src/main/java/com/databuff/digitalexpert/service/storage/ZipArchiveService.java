@@ -19,10 +19,11 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -74,7 +75,7 @@ public class ZipArchiveService {
             Files.createDirectories(Objects.requireNonNull(zipOutputPath.getParent()));
             String rootDirectory = resolveArchiveRootDirectory(zipOutputPath.getFileName());
             try (OutputStream fileOutputStream = Files.newOutputStream(zipOutputPath);
-                 ZipOutputStream outputStream = new ZipOutputStream(fileOutputStream, StandardCharsets.UTF_8)) {
+                 ZipArchiveOutputStream outputStream = createZipOutputStream(fileOutputStream)) {
                 addDirectoryEntry(outputStream, rootDirectory + "/");
                 addDirectoryEntry(outputStream, rootDirectory + "/skills/");
                 addDirectoryEntry(outputStream, rootDirectory + "/static_packages/");
@@ -97,7 +98,7 @@ public class ZipArchiveService {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID, "技能目录不存在: " + directory);
         }
         try (ByteArrayOutputStream output = new ByteArrayOutputStream();
-             ZipOutputStream zipOutputStream = new ZipOutputStream(output, StandardCharsets.UTF_8);
+             ZipArchiveOutputStream zipOutputStream = createZipOutputStream(output);
              Stream<Path> files = Files.walk(directory)) {
             files.filter(Files::isRegularFile).forEach(path -> {
                 String relative = normalizeEntryPath(directory.relativize(path).toString());
@@ -116,26 +117,37 @@ public class ZipArchiveService {
         }
     }
 
-    private void addDirectoryEntry(ZipOutputStream outputStream, String entryName) throws IOException {
-        ZipEntry entry = new ZipEntry(ensureDirectoryEntry(entryName));
-        outputStream.putNextEntry(entry);
-        outputStream.closeEntry();
+    private ZipArchiveOutputStream createZipOutputStream(OutputStream outputStream) {
+        ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(outputStream);
+        zipOutputStream.setEncoding(StandardCharsets.UTF_8.name());
+        zipOutputStream.setUseLanguageEncodingFlag(true);
+        zipOutputStream.setFallbackToUTF8(true);
+        zipOutputStream.setCreateUnicodeExtraFields(
+                ZipArchiveOutputStream.UnicodeExtraFieldPolicy.ALWAYS
+        );
+        return zipOutputStream;
     }
 
-    private void addFileEntry(ZipOutputStream outputStream, String entryName, Path sourcePath) throws IOException {
+    private void addDirectoryEntry(ZipArchiveOutputStream outputStream, String entryName) throws IOException {
+        ZipArchiveEntry entry = new ZipArchiveEntry(ensureDirectoryEntry(entryName));
+        outputStream.putArchiveEntry(entry);
+        outputStream.closeArchiveEntry();
+    }
+
+    private void addFileEntry(ZipArchiveOutputStream outputStream, String entryName, Path sourcePath) throws IOException {
         try (InputStream inputStream = Files.newInputStream(sourcePath)) {
             addStreamEntry(outputStream, entryName, inputStream);
         }
     }
 
-    private void addStreamEntry(ZipOutputStream outputStream, String entryName, InputStream inputStream) throws IOException {
-        ZipEntry entry = new ZipEntry(normalizeEntryPath(entryName));
-        outputStream.putNextEntry(entry);
+    private void addStreamEntry(ZipArchiveOutputStream outputStream, String entryName, InputStream inputStream) throws IOException {
+        ZipArchiveEntry entry = new ZipArchiveEntry(normalizeEntryPath(entryName));
+        outputStream.putArchiveEntry(entry);
         inputStream.transferTo(outputStream);
-        outputStream.closeEntry();
+        outputStream.closeArchiveEntry();
     }
 
-    private void expandZipFile(ZipOutputStream outputStream, String baseEntryPath, Path archivePath) throws IOException {
+    private void expandZipFile(ZipArchiveOutputStream outputStream, String baseEntryPath, Path archivePath) throws IOException {
         try (ZipFile zipFile = new ZipFile(archivePath.toFile(), StandardCharsets.UTF_8)) {
             String wrapperDirectory = resolveWrapperDirectory(zipFile);
             Enumeration<? extends ZipEntry> entries = zipFile.entries();

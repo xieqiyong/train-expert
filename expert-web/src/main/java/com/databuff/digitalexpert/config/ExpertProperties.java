@@ -107,7 +107,7 @@ public class ExpertProperties {
          * 提交 chat 后，轮询会话结束接口的最长等待时间。
          */
         @Min(1000)
-        private int sessionTimeoutMs = 30 * 60 * 1000;
+        private int sessionTimeoutMs = 60 * 60 * 1000;
 
         /**
          * 会话结束后的产物缓冲时间，单位毫秒。

@@ -13,8 +13,10 @@ import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertReleaseTaskEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertSkillBindingEntity;
+import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.entity.SkillPackageEntity;
+import com.databuff.digitalexpert.dao.entity.StaticPackageEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.PackageStatus;
@@ -24,8 +26,10 @@ import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertReleaseTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
+import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
+import com.databuff.digitalexpert.dao.mapper.StaticPackageMapper;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.ExpertTrainingService;
@@ -38,6 +42,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -69,7 +74,11 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     @Autowired
     private ExpertSkillBindingMapper expertSkillBindingMapper;
     @Autowired
+    private ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
+    @Autowired
     private SkillPackageMapper skillPackageMapper;
+    @Autowired
+    private StaticPackageMapper staticPackageMapper;
     @Autowired
     private ExpertReleaseTaskMapper expertReleaseTaskMapper;
     @Autowired
@@ -185,6 +194,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             );
 
             task = requireTask(taskId);
+            // 任务ID和sessionId就是同一个值
             task.setSessionId(taskId);
             task.setSubmitRequestId(submitResult.requestId());
             task.setUpdatedAt(LocalDateTime.now());
@@ -271,6 +281,11 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
             List<Long> skillIds = importSkillPackages(skillDirectories);
             replaceExpertSkills(task.getExpertId(), skillIds);
+            List<Path> staticPackageFiles = collectStaticPackageFiles(task);
+            if (!staticPackageFiles.isEmpty()) {
+                List<Long> staticPackageIds = importStaticPackages(staticPackageFiles);
+                replaceExpertStaticPackages(task.getExpertId(), staticPackageIds);
+            }
 
             task = requireTask(task.getTaskId());
             task.setStatus(TrainingTaskStatus.RELEASING.name());
@@ -378,6 +393,82 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             binding.setSortNo(i + 1);
             binding.setCreatedAt(now);
             expertSkillBindingMapper.insert(binding);
+        }
+    }
+
+    private List<Path> collectStaticPackageFiles(ExpertTrainingTaskEntity task) {
+        AppInfoSource appInfoSource = findAppInfoSource(parseSources(task.getSourceManifestJson()));
+        if (appInfoSource == null) {
+            return List.of();
+        }
+        try (var stream = Files.list(appInfoSource.jarsDirectory())) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName() != null)
+                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT)))
+                    .toList();
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                    "读取训练源 jars 目录失败: " + appInfoSource.jarsDirectory());
+        }
+    }
+
+    private List<Long> importStaticPackages(List<Path> jarFiles) {
+        List<Long> staticPackageIds = new ArrayList<>();
+        for (Path jarFile : jarFiles) {
+            String packageName = jarFile.getFileName().toString();
+            String name = removeExtension(packageName);
+            String checksum;
+            try {
+                checksum = zipArchiveService.sha256Hex(Files.readAllBytes(jarFile));
+            } catch (IOException ex) {
+                throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                        "读取静态资源包失败: " + jarFile);
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            StaticPackageEntity entity = new StaticPackageEntity();
+            entity.setName(StringUtils.hasText(name) ? name : packageName);
+            entity.setStaticType("jar");
+            entity.setDescription("训练源自动导入");
+            entity.setPackageName(packageName);
+            entity.setChecksum(checksum);
+            entity.setStatus(PackageStatus.ACTIVE.name());
+            entity.setPackagePath("");
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            staticPackageMapper.insert(entity);
+
+            Path directory = sharedStorageService.resolveStaticPackageDirectory(entity.getId());
+            sharedStorageService.recreateDirectory(directory);
+            Path packagePath = directory.resolve(packageName);
+            try {
+                Files.copy(jarFile, packagePath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                        "复制静态资源包失败: " + jarFile);
+            }
+            entity.setPackagePath(sharedStorageService.toStoragePath(packagePath));
+            entity.setUpdatedAt(LocalDateTime.now());
+            staticPackageMapper.updateById(entity);
+            staticPackageIds.add(entity.getId());
+        }
+        return staticPackageIds;
+    }
+
+    @Transactional
+    protected void replaceExpertStaticPackages(Long expertId, List<Long> staticPackageIds) {
+        expertStaticPackageBindingMapper.delete(new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                .eq(ExpertStaticPackageBindingEntity::getExpertId, expertId));
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 0; i < staticPackageIds.size(); i++) {
+            ExpertStaticPackageBindingEntity binding = new ExpertStaticPackageBindingEntity();
+            binding.setExpertId(expertId);
+            binding.setStaticPackageId(staticPackageIds.get(i));
+            binding.setSortNo(i + 1);
+            binding.setCreatedAt(now);
+            expertStaticPackageBindingMapper.insert(binding);
         }
     }
 
