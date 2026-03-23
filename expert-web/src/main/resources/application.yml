@@ -30,8 +30,8 @@ mybatis-plus:
 
 digital-expert:
   training:
-    output-root: /var/dacheng/agent/output/
-    spec-skill-path: /var/dacheng/agent/skills/root-skills-creator/
+    output-root: /app/agent/output/
+    spec-skill-path: /app/root-skills-creator/
     poll-interval-ms: 5000
     session-timeout-ms: 1800000
     artifact-grace-period-ms: 120000
@@ -39,7 +39,7 @@ digital-expert:
   proxy:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
-  static-package: /var/dacheng/upload/static
+  static-package: /app/upload/static
   agent:
     skills-output:
-      - /opt/databuff-ai-agent/agent-business/skills/
+      - /app/agent/agent-business/skills/
