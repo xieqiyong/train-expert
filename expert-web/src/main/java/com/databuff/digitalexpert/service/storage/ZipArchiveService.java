@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Enumeration;
@@ -19,11 +20,11 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -36,7 +37,7 @@ public class ZipArchiveService {
 
     public SkillArchiveMetadata inspectSkillArchive(byte[] archiveBytes, String originalFilename) {
         if (archiveBytes == null || archiveBytes.length == 0) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能归档为空");
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能归档不能为空");
         }
         if (originalFilename == null || !originalFilename.toLowerCase(Locale.ROOT).endsWith(ZIP_SUFFIX)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包必须是 zip 文件");
@@ -117,6 +118,48 @@ public class ZipArchiveService {
         }
     }
 
+    public void extractZipToDirectory(Path archivePath, Path targetDirectory, boolean stripWrapperDirectory) {
+        if (archivePath == null || !Files.isRegularFile(archivePath)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包文件不存在: " + archivePath);
+        }
+        if (targetDirectory == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "技能输出目录不能为空");
+        }
+        try {
+            Files.createDirectories(targetDirectory);
+            try (ZipFile zipFile = new ZipFile(archivePath.toFile(), StandardCharsets.UTF_8)) {
+                String wrapperDirectory = stripWrapperDirectory ? resolveWrapperDirectory(zipFile) : null;
+                Enumeration<? extends ZipEntry> entries = zipFile.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    String entryName = normalizeEntryPath(entry.getName());
+                    if (entryName.isBlank()) {
+                        continue;
+                    }
+                    if (wrapperDirectory != null && entryName.startsWith(wrapperDirectory + "/")) {
+                        entryName = entryName.substring(wrapperDirectory.length() + 1);
+                    }
+                    if (entryName.isBlank()) {
+                        continue;
+                    }
+                    Path outputPath = resolveExtractOutputPath(targetDirectory, entryName);
+                    if (entry.isDirectory()) {
+                        Files.createDirectories(outputPath);
+                        continue;
+                    }
+                    Files.createDirectories(outputPath.getParent());
+                    try (InputStream inputStream = zipFile.getInputStream(entry)) {
+                        Files.copy(inputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "解压技能包失败: " + archivePath);
+        }
+    }
+
     private ZipArchiveOutputStream createZipOutputStream(OutputStream outputStream) {
         ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(outputStream);
         zipOutputStream.setEncoding(StandardCharsets.UTF_8.name());
@@ -193,6 +236,15 @@ public class ZipArchiveService {
             }
         }
         return wrapperDirectory;
+    }
+
+    private Path resolveExtractOutputPath(Path targetDirectory, String entryName) {
+        Path normalizedTargetDirectory = targetDirectory.toAbsolutePath().normalize();
+        Path outputPath = normalizedTargetDirectory.resolve(entryName).normalize();
+        if (!outputPath.startsWith(normalizedTargetDirectory)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包中存在非法文件路径: " + entryName);
+        }
+        return outputPath;
     }
 
     private String extractSkillMd(byte[] archiveBytes) {

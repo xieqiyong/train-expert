@@ -40,3 +40,6 @@ digital-expert:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
   static-package: /var/dacheng/upload/static
+  agent:
+    skills-output:
+      - /opt/databuff-ai-agent/agent-business/skills/

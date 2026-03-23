@@ -3,6 +3,8 @@ package com.databuff.digitalexpert.config;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -34,6 +36,11 @@ public class ExpertProperties {
      * 代理服务调用配置。
      */
     private Proxy proxy = new Proxy();
+
+    /**
+     * Agent 相关配置。
+     */
+    private Agent agent = new Agent();
 
     @Getter
     @Setter
@@ -138,5 +145,15 @@ public class ExpertProperties {
          */
         @Min(1000)
         private int timeoutMs = 15000;
+    }
+
+    @Getter
+    @Setter
+    public static class Agent {
+
+        /**
+         * 训练成功后，技能包解压输出目录列表。
+         */
+        private List<String> skillsOutput = new ArrayList<>();
     }
 }

@@ -6,8 +6,5 @@
 *.log
 .claude
 .codex
-技术方案设计文档.md
-项目迭代进度表.md
 logs
-新skills规范.md
 databuff-digital-expert.iml
