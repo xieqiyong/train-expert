@@ -41,25 +41,34 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
-@RequiredArgsConstructor
 public class DigitalExpertServiceImpl implements DigitalExpertService {
 
-    private final DigitalExpertMapper digitalExpertMapper;
-    private final ExpertSkillBindingMapper expertSkillBindingMapper;
-    private final ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
-    private final ExpertMcpBindingMapper expertMcpBindingMapper;
-    private final ExpertReleaseTaskMapper expertReleaseTaskMapper;
-    private final ExpertTrainingTaskMapper expertTrainingTaskMapper;
-    private final SkillPackageService skillPackageService;
-    private final StaticPackageService staticPackageService;
-    private final ExpertConfigService expertConfigService;
-    private final ExpertReleaseService expertReleaseService;
+    @Autowired
+    private DigitalExpertMapper digitalExpertMapper;
+    @Autowired
+    private ExpertSkillBindingMapper expertSkillBindingMapper;
+    @Autowired
+    private ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
+    @Autowired
+    private ExpertMcpBindingMapper expertMcpBindingMapper;
+    @Autowired
+    private ExpertReleaseTaskMapper expertReleaseTaskMapper;
+    @Autowired
+    private ExpertTrainingTaskMapper expertTrainingTaskMapper;
+    @Autowired
+    private SkillPackageService skillPackageService;
+    @Autowired
+    private StaticPackageService staticPackageService;
+    @Autowired
+    private ExpertConfigService expertConfigService;
+    @Autowired
+    private ExpertReleaseService expertReleaseService;
 
     @Override
     @Transactional

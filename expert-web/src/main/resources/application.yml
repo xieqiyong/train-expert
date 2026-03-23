@@ -18,15 +18,6 @@ spring:
       date: yyyy-MM-dd
       time: HH:mm:ss
       date-time: yyyy-MM-dd HH:mm:ss
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
-    consumer:
-      auto-offset-reset: latest
-      enable-auto-commit: true
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    listener:
-      missing-topics-fatal: false
 
 server:
   port: ${SERVER_PORT:19008}
@@ -40,16 +31,11 @@ mybatis-plus:
 digital-expert:
   training:
     output-root: /var/dacheng/agent/output/
-    spec-skill-path: /expert-web/root-skills-creator/
+    spec-skill-path: /var/dacheng/agent/skills/root-skills-creator/
     poll-interval-ms: 5000
     session-timeout-ms: 1800000
     artifact-grace-period-ms: 120000
     release-timeout-ms: 1800000
-    kafka:
-      enabled: ${DIGITAL_EXPERT_TRAINING_KAFKA_ENABLED:false}
-      topic: ${DIGITAL_EXPERT_TRAINING_KAFKA_TOPIC:dc_expert_file}
-      group-id: ${DIGITAL_EXPERT_TRAINING_KAFKA_GROUP_ID:digital-expert-training}
-      app-info-dir-name: ${DIGITAL_EXPERT_TRAINING_KAFKA_APP_INFO_DIR_NAME:app_info}
   proxy:
     timeout-ms: 15000
     base-url: http://192.168.50.18:19300

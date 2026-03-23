@@ -1,8 +1,8 @@
 package com.databuff.digitalexpert.service.storage;
 
 import com.databuff.digitalexpert.common.BusinessException;
-import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.config.ExpertProperties;
+import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,14 +10,14 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Comparator;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class SharedStorageService {
 
-    private final ExpertProperties properties;
+    @Autowired
+    private ExpertProperties properties;
 
     public Path getStaticPackage() {
         return Paths.get(properties.getStaticPackage()).toAbsolutePath().normalize();
@@ -133,7 +133,7 @@ public class SharedStorageService {
         try {
             Files.move(backupDirectory, currentDirectory, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ignored) {
-            // Best-effort restore.
+            // 尽力恢复备份，不再抛出异常。
         }
     }
 
@@ -141,7 +141,7 @@ public class SharedStorageService {
         Path normalized = path.toAbsolutePath().normalize();
         Path root = getStaticPackage();
         if (!normalized.startsWith(root)) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "路径超出共享根目录");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "路径超出共享根目录: " + normalized);
         }
     }
 }

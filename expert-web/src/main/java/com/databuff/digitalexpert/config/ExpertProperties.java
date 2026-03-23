@@ -76,7 +76,7 @@ public class ExpertProperties {
          * 训练提交线程池大小。
          */
         @Min(1)
-        private int submitExecutorPoolSize = 2;
+        private int submitExecutorPoolSize = 5;
 
         /**
          * 训练提交线程池队列容量。
@@ -121,39 +121,6 @@ public class ExpertProperties {
          */
         @Min(1000)
         private int releaseTimeoutMs = 30 * 60 * 1000;
-
-        /**
-         * Kafka 自动触发训练配置。
-         */
-        private Kafka kafka = new Kafka();
-    }
-
-    @Getter
-    @Setter
-    public static class Kafka {
-
-        /**
-         * 是否启用 Kafka 自动训练消费。
-         */
-        private boolean enabled = false;
-
-        /**
-         * 上传服务发送训练消息的 Topic。
-         */
-        @NotBlank
-        private String topic = "dc_expert_file";
-
-        /**
-         * 训练消费者分组。
-         */
-        @NotBlank
-        private String groupId = "digital-expert-training";
-
-        /**
-         * 上传文件解压后的应用目录名称。
-         */
-        @NotBlank
-        private String appInfoDirName = "app_info";
     }
 
     @Getter

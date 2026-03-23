@@ -27,7 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -44,14 +44,17 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Validated
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/v1/experts")
 public class DigitalExpertController {
 
-    private final DigitalExpertService digitalExpertService;
-    private final ExpertConfigService expertConfigService;
-    private final ExpertReleaseService expertReleaseService;
-    private final ExpertTrainingService expertTrainingService;
+    @Autowired
+    private DigitalExpertService digitalExpertService;
+    @Autowired
+    private ExpertConfigService expertConfigService;
+    @Autowired
+    private ExpertReleaseService expertReleaseService;
+    @Autowired
+    private ExpertTrainingService expertTrainingService;
 
     @PostMapping
     public ApiResponse<ExpertSummaryResponse> createExpert(@Valid @RequestBody CreateExpertRequest request) {

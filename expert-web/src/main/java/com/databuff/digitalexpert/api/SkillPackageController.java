@@ -5,7 +5,6 @@ import com.databuff.digitalexpert.dao.dto.IdRequest;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.databuff.digitalexpert.service.SkillPackageService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;

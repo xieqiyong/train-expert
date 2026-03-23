@@ -33,7 +33,7 @@ import com.databuff.digitalexpert.service.proxy.TrainingProxyClient;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
 import com.databuff.digitalexpert.service.storage.SkillArchiveMetadata;
 import com.databuff.digitalexpert.service.storage.ZipArchiveService;
-import com.databuff.digitalexpert.util.TaskIdGenerator;
+import com.databuff.digitalexpert.util.AgentSessionId;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -104,7 +104,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
 
         List<TrainingSourceRequest> normalizedSources = normalizeSources(request.sources());
-        String taskId = TaskIdGenerator.nextTrainingTaskId();
+        String taskId = AgentSessionId.generate();
         Path outputDirectory = resolveTrainingOutputDirectory(expertId, taskId);
 
         LocalDateTime now = LocalDateTime.now();
@@ -185,7 +185,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             );
 
             task = requireTask(taskId);
-            task.setSessionId(submitResult.sessionId());
+            task.setSessionId(taskId);
             task.setSubmitRequestId(submitResult.requestId());
             task.setUpdatedAt(LocalDateTime.now());
             expertTrainingTaskMapper.updateById(task);
@@ -195,7 +195,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             expert.setUpdatedAt(LocalDateTime.now());
             digitalExpertMapper.updateById(expert);
         } catch (Exception ex) {
-            log.error("训练任务提交到代理服务失败, taskId={}", taskId, ex);
+            log.error("提交训练任务到代理失败, taskId={}", taskId, ex);
             markTaskFailed(taskId, ex.getMessage());
         }
     }
@@ -225,14 +225,14 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         if (!StringUtils.hasText(task.getSessionId())) {
             if (shouldLogProgress(pollCount, 12)) {
-                log.info("训练任务尚未拿到会话ID，继续等待, taskId={}, elapsedMs={}, timeoutMs={}",
+                log.info("训练任务等待会话ID中, taskId={}, elapsedMs={}, timeoutMs={}",
                         task.getTaskId(), elapsedMs, timeoutMs);
             }
             return;
         }
         if (!trainingProxyClient.isSessionFinished(task.getSessionId())) {
             if (shouldLogProgress(pollCount, 12)) {
-                log.info("训练会话尚未结束，继续等待, taskId={}, sessionId={}, elapsedMs={}, timeoutMs={}",
+                log.info("训练会话未结束, taskId={}, sessionId={}, elapsedMs={}, timeoutMs={}",
                         task.getTaskId(), task.getSessionId(), elapsedMs, timeoutMs);
             }
             return;
@@ -244,7 +244,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         task.setPollCount(0);
         task.setUpdatedAt(now);
         expertTrainingTaskMapper.updateById(task);
-        log.info("训练会话已结束，进入产物缓冲等待, taskId={}, sessionId={}, gracePeriodMs={}",
+        log.info("训练会话已结束，进入产物缓冲期, taskId={}, sessionId={}, gracePeriodMs={}",
                 task.getTaskId(), task.getSessionId(), properties.getTraining().getArtifactGracePeriodMs());
     }
 
@@ -255,14 +255,14 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         if (elapsedMs < gracePeriodMs) {
             if (shouldLogProgress(pollCount, 6)) {
                 long remainingMs = Math.max(gracePeriodMs - elapsedMs, 0L);
-                log.info("训练会话已结束，等待产物落盘, taskId={}, elapsedMs={}, remainingMs={}",
+                log.info("训练产物缓冲中, taskId={}, elapsedMs={}, remainingMs={}",
                         task.getTaskId(), elapsedMs, remainingMs);
             }
             return;
         }
 
         try {
-            log.info("产物缓冲结束，开始校验训练产物, taskId={}, waitMs={}", task.getTaskId(), elapsedMs);
+            log.info("开始校验训练产物, taskId={}, waitMs={}", task.getTaskId(), elapsedMs);
             List<Path> skillDirectories = collectSkillDirectories(task);
             task = requireTask(task.getTaskId());
             task.setStatus(TrainingTaskStatus.IMPORTING_SKILLS.name());
@@ -281,16 +281,16 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             ExpertReleaseTaskResponse releaseTask = expertReleaseService.submitReleaseTask(task.getExpertId());
             task.setReleaseTaskId(releaseTask.taskId());
             expertTrainingTaskMapper.updateById(task);
-            log.info("训练产物已入库，开始发布专家, taskId={}, releaseTaskId={}", task.getTaskId(), releaseTask.taskId());
+            log.info("训练产物导入完成，已触发发布任务, taskId={}, releaseTaskId={}", task.getTaskId(), releaseTask.taskId());
         } catch (BusinessException ex) {
             if (isArtifactsNotReady(ex)) {
-                markTaskFailed(task.getTaskId(), "训练产物在缓冲期结束后仍未就绪: " + ex.getMessage());
+                markTaskFailed(task.getTaskId(), "训练产物未就绪或校验失败: " + ex.getMessage());
             } else {
-                log.error("训练产物校验或入库失败, taskId={}", task.getTaskId(), ex);
+                log.error("处理训练产物失败, taskId={}", task.getTaskId(), ex);
                 markTaskFailed(task.getTaskId(), ex.getMessage());
             }
         } catch (Exception ex) {
-            log.error("训练产物校验或入库失败, taskId={}", task.getTaskId(), ex);
+            log.error("处理训练产物失败, taskId={}", task.getTaskId(), ex);
             markTaskFailed(task.getTaskId(), ex.getMessage());
         }
     }
@@ -300,11 +300,11 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         long elapsedMs = calculateElapsedMs(task.getUpdatedAt());
         long timeoutMs = properties.getTraining().getReleaseTimeoutMs();
         if (elapsedMs >= timeoutMs) {
-            markTaskTimeout(task.getTaskId(), "发布任务轮询超时");
+            markTaskTimeout(task.getTaskId(), "发布任务等待超时");
             return;
         }
         if (!StringUtils.hasText(task.getReleaseTaskId())) {
-            markTaskFailed(task.getTaskId(), "发布任务ID为空");
+            markTaskFailed(task.getTaskId(), "发布任务缺少任务ID");
             return;
         }
 
@@ -317,7 +317,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
 
         if (ReleaseTaskStatus.SUCCEEDED.name().equals(releaseTask.getStatus())) {
-            log.info("专家发布完成，训练任务成功结束, taskId={}, releaseTaskId={}", task.getTaskId(), task.getReleaseTaskId());
+            log.info("训练任务发布成功, taskId={}, releaseTaskId={}", task.getTaskId(), task.getReleaseTaskId());
             markTaskSucceeded(task.getTaskId());
             return;
         }
@@ -326,7 +326,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             return;
         }
         if (shouldLogProgress(pollCount, 12)) {
-            log.info("专家发布尚未完成，继续等待, taskId={}, releaseTaskId={}, elapsedMs={}, timeoutMs={}",
+            log.info("发布任务未完成, taskId={}, releaseTaskId={}, elapsedMs={}, timeoutMs={}",
                     task.getTaskId(), task.getReleaseTaskId(), elapsedMs, timeoutMs);
         }
     }
@@ -361,7 +361,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         if (skillIds.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
-                    "未找到有效的技能产物");
+                    "未导入任何技能包");
         }
         return skillIds;
     }
@@ -408,7 +408,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         for (Path directory : directories) {
             if (!Files.isRegularFile(directory.resolve("SKILL.md"))) {
                 throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
-                        "生成目录缺少 SKILL.md: " + directory);
+                        "技能目录缺少 SKILL.md: " + directory);
             }
         }
         return List.copyOf(directories);
@@ -424,7 +424,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             skills = JSON.parseArray(text);
         } catch (Exception ex) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
-                    "训练产物清单JSON格式非法");
+                    "训练产物清单JSON格式不正确");
         }
         if (skills == null || skills.isEmpty()) {
             return List.of();
@@ -466,8 +466,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         if (appInfoSource != null) {
             builder.append("输入路径: ").append(appInfoSource.jarsDirectory()).append("\n");
-            appendPromptLine(builder, "应用名", appInfoSource.appName());
-        } else {
+            appendPromptLine(builder, "应用名称", appInfoSource.appName());
+        } else if (sources != null && !sources.isEmpty()) {
             builder.append("输入:\n");
             for (int i = 0; i < sources.size(); i++) {
                 TrainingSourceRequest source = sources.get(i);
@@ -482,9 +482,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
         builder.append("输出路径: ").append(skillDirectory).append("\n");
         if (specSkillPath != null) {
-            builder.append("规范路径: ").append(specSkillPath.resolve("SKILL.md")).append("\n");
-        } else {
-            builder.append("规范路径: 未配置\n");
+            builder.append("规范路径: ").append(specSkillPath).append("\n");
         }
         builder.append("要求:\n")
                 .append("1. 使用 skill-creator，按规范生成 1 个 skill。\n")
@@ -499,10 +497,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             return null;
         }
         Path path = Path.of(configuredPath).normalize();
-        if (Files.isRegularFile(path.resolve("SKILL.md"))) {
-            return path;
+        if (!Files.isRegularFile(path.resolve("SKILL.md"))) {
+            log.warn("配置的规范 skill 路径不可用，未找到 SKILL.md, path={}", path);
         }
-        log.warn("配置的规范 skill 路径不可用，未找到 SKILL.md, path={}", path);
         return path;
     }
 
@@ -565,21 +562,23 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private String resolveSkillDirectoryName(List<TrainingSourceRequest> sources, String taskId) {
-        for (TrainingSourceRequest source : sources) {
-            AppInfoSource appInfoSource = resolveAppInfoSource(source);
-            if (appInfoSource != null && StringUtils.hasText(appInfoSource.appName())) {
-                String normalized = normalizeSkillDirectoryName(appInfoSource.appName());
+        if (sources != null) {
+            for (TrainingSourceRequest source : sources) {
+                AppInfoSource appInfoSource = resolveAppInfoSource(source);
+                if (appInfoSource != null && StringUtils.hasText(appInfoSource.appName())) {
+                    String normalized = normalizeSkillDirectoryName(appInfoSource.appName());
+                    if (StringUtils.hasText(normalized)) {
+                        return normalized;
+                    }
+                }
+                String fileName = extractSourceFileName(source);
+                if (!StringUtils.hasText(fileName)) {
+                    continue;
+                }
+                String normalized = normalizeSkillDirectoryName(removeExtension(fileName));
                 if (StringUtils.hasText(normalized)) {
                     return normalized;
                 }
-            }
-            String fileName = extractSourceFileName(source);
-            if (!StringUtils.hasText(fileName)) {
-                continue;
-            }
-            String normalized = normalizeSkillDirectoryName(removeExtension(fileName));
-            if (StringUtils.hasText(normalized)) {
-                return normalized;
             }
         }
         return "generated_skill_" + taskId.substring(0, Math.min(taskId.length(), 8));
@@ -618,9 +617,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             AppInfoSource appInfoSource = resolveAppInfoSource(source);
             if (appInfoSource != null) {
                 result.add(appInfoSource.jarsDirectory().toString());
-                continue;
+            } else {
+                result.add(source.sourceValue());
             }
-            result.add(source.sourceValue());
         }
         return result;
     }
@@ -646,15 +645,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         try {
             Path appInfoDirectory = Path.of(source.sourceValue()).normalize();
-            String expectedDirName = properties.getTraining().getKafka().getAppInfoDirName();
-            if (StringUtils.hasText(expectedDirName)
-                    && appInfoDirectory.getFileName() != null
-                    && !expectedDirName.equals(appInfoDirectory.getFileName().toString())
-                    && !Files.exists(appInfoDirectory.resolve("app.json"))
-                    && !Files.exists(appInfoDirectory.resolve("jars"))) {
+            if (!Files.isDirectory(appInfoDirectory)) {
                 return null;
             }
-
             Path appJsonPath = appInfoDirectory.resolve("app.json");
             Path jarsDirectory = appInfoDirectory.resolve("jars");
             if (!Files.isRegularFile(appJsonPath) || !Files.isDirectory(jarsDirectory) || !containsJarFile(jarsDirectory)) {
@@ -664,7 +657,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             String appName = resolveAppName(appInfoDirectory, appInfoJson);
             return new AppInfoSource(appInfoDirectory, jarsDirectory, appName);
         } catch (Exception ex) {
-            log.warn("Resolve app_info training source failed, sourceValue={}", source.sourceValue(), ex);
+            log.warn("解析 app_info 训练源失败, sourceValue={}", source.sourceValue(), ex);
             return null;
         }
     }
@@ -675,7 +668,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                     && path.getFileName() != null
                     && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"));
         } catch (IOException ex) {
-            log.warn("Check jars directory failed, path={}", jarsDirectory, ex);
+            log.warn("检查 jars 目录失败, path={}", jarsDirectory, ex);
             return false;
         }
     }
@@ -684,7 +677,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         try {
             return JSON.parseObject(Files.readString(path), JSONObject.class);
         } catch (Exception ex) {
-            log.warn("Read JSON file failed, path={}", path, ex);
+            log.warn("读取 JSON 文件失败, path={}", path, ex);
             return null;
         }
     }
@@ -718,7 +711,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 return extractLastPathSegment(uri.getPath());
             }
         } catch (Exception ignored) {
-            // 回退到普通字符串截取。
+            // Fallback to plain string slicing.
         }
         String sanitized = value;
         int queryIndex = sanitized.indexOf('?');
@@ -785,7 +778,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
         if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
             throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED,
-                    "训练过程中专家被禁用");
+                    "训练前专家已被禁用: " + expertId);
         }
         if (!ExpertStatus.STARTED.name().equals(expert.getStatus())) {
             expert.setStatus(ExpertStatus.TRAINING.name());
@@ -810,7 +803,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         expert.setTrainingVersion((expert.getTrainingVersion() == null ? 0 : expert.getTrainingVersion()) + 1);
         expert.setUpdatedAt(now);
         digitalExpertMapper.updateById(expert);
-        log.info("训练任务完成, taskId={}, expertId={}, sessionId={}",
+        log.info("训练任务成功, taskId={}, expertId={}, sessionId={}",
                 task.getTaskId(), task.getExpertId(), task.getSessionId());
     }
 
@@ -894,7 +887,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private Path normalizeAndCheckOutputPath(String outputPath) {
         if (!StringUtils.hasText(outputPath)) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
-                    "输出目录为空");
+                    "输出目录不能为空");
         }
         return Path.of(outputPath).normalize();
     }
@@ -939,14 +932,14 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             });
         } catch (IOException ex) {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
-                    "清理训练输出目录失败: " + path);
+                    "删除训练输出目录失败: " + path);
         }
     }
 
     private List<TrainingSourceRequest> normalizeSources(List<TrainingSourceRequest> sources) {
         if (sources == null || sources.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
-                    "训练输入源不能为空");
+                    "训练源不能为空");
         }
         List<TrainingSourceRequest> result = new ArrayList<>();
         for (TrainingSourceRequest source : sources) {
@@ -969,7 +962,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         if (result.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
-                    "训练输入源不能为空");
+                    "训练源不能为空");
         }
         return result;
     }
@@ -1021,7 +1014,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
     private String truncateReason(String reason) {
         if (!StringUtils.hasText(reason)) {
-            return "未知失败";
+            return "未知错误";
         }
         return reason.length() > 1800 ? reason.substring(0, 1800) : reason;
     }

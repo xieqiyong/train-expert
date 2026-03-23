@@ -20,10 +20,6 @@ public final class TaskIdGenerator {
     private TaskIdGenerator() {
     }
 
-    public static String nextTrainingTaskId() {
-        return next("train");
-    }
-
     public static String nextReleaseTaskId() {
         return next("release");
     }

@@ -9,16 +9,17 @@ import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.service.AutoExpertResolveService;
 import com.databuff.digitalexpert.service.DigitalExpertService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-@RequiredArgsConstructor
 public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
 
-    private final DigitalExpertMapper digitalExpertMapper;
-    private final DigitalExpertService digitalExpertService;
+    @Autowired
+    private DigitalExpertMapper digitalExpertMapper;
+    @Autowired
+    private DigitalExpertService digitalExpertService;
 
     @Override
     public ResolvedExpert resolveOrCreateByServiceName(String serviceName) {

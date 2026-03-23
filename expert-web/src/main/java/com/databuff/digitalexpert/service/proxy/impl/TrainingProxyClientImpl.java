@@ -14,7 +14,6 @@ import com.databuff.digitalexpert.service.proxy.ProxyApiType;
 import com.databuff.digitalexpert.service.proxy.TrainingProxyClient;
 import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
