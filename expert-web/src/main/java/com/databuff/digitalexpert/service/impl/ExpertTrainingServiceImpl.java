@@ -33,6 +33,8 @@ import com.databuff.digitalexpert.dao.mapper.StaticPackageMapper;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.ExpertTrainingService;
+import com.databuff.digitalexpert.dao.bo.TrainingContext;
+import com.databuff.digitalexpert.service.TrainingDispatcher;
 import com.databuff.digitalexpert.service.proxy.TrainingProxyClient;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
 import com.databuff.digitalexpert.service.storage.SkillArchiveMetadata;
@@ -91,6 +93,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private ZipArchiveService zipArchiveService;
     @Autowired
     private ExpertProperties properties;
+    @Autowired
+    private TrainingDispatcher trainingDispatcher;
     @Autowired
     private TrainingProxyClient trainingProxyClient;
     @Autowired
@@ -896,6 +900,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         digitalExpertMapper.updateById(expert);
         log.info("训练任务成功, taskId={}, expertId={}, sessionId={}",
                 task.getTaskId(), task.getExpertId(), task.getSessionId());
+        triggerPostProcess(task.getTaskId(), TrainingTaskStatus.SUCCEEDED);
     }
 
     private void markTaskFailed(String taskId, String reason) {
@@ -909,6 +914,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         restoreExpertStatus(task);
         log.warn("训练任务失败, taskId={}, expertId={}, reason={}",
                 task.getTaskId(), task.getExpertId(), truncateReason(reason));
+        triggerPostProcess(task.getTaskId(), TrainingTaskStatus.FAILED);
     }
 
     private void markTaskTimeout(String taskId, String reason) {
@@ -922,6 +928,45 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         restoreExpertStatus(task);
         log.warn("训练任务超时, taskId={}, expertId={}, reason={}",
                 task.getTaskId(), task.getExpertId(), truncateReason(reason));
+        triggerPostProcess(task.getTaskId(), TrainingTaskStatus.TIMEOUT);
+    }
+
+    private void triggerPostProcess(String taskId, TrainingTaskStatus status) {
+        try {
+            trainingDispatcher.dispatch(buildPostProcessContext(taskId, status));
+        } catch (Exception ex) {
+            log.error("触发训练后置处理失败, taskId={}, status={}", taskId, status, ex);
+        }
+    }
+
+    private TrainingContext buildPostProcessContext(String taskId, TrainingTaskStatus status) {
+        ExpertTrainingTaskEntity task = requireTask(taskId);
+        DigitalExpertEntity expert = expertConfigService.requireExpert(task.getExpertId());
+        return new TrainingContext(
+                status,
+                task,
+                expert,
+                loadCurrentSkillIds(task.getExpertId()),
+                loadCurrentStaticPackageIds(task.getExpertId())
+        );
+    }
+
+    private List<Long> loadCurrentSkillIds(Long expertId) {
+        return expertSkillBindingMapper.selectList(new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                        .eq(ExpertSkillBindingEntity::getExpertId, expertId)
+                        .orderByAsc(ExpertSkillBindingEntity::getSortNo, ExpertSkillBindingEntity::getId))
+                .stream()
+                .map(ExpertSkillBindingEntity::getSkillId)
+                .toList();
+    }
+
+    private List<Long> loadCurrentStaticPackageIds(Long expertId) {
+        return expertStaticPackageBindingMapper.selectList(new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                        .eq(ExpertStaticPackageBindingEntity::getExpertId, expertId)
+                        .orderByAsc(ExpertStaticPackageBindingEntity::getSortNo, ExpertStaticPackageBindingEntity::getId))
+                .stream()
+                .map(ExpertStaticPackageBindingEntity::getStaticPackageId)
+                .toList();
     }
 
     private boolean hasActiveTrainingTask(Long expertId) {

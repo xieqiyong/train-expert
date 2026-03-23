@@ -20,7 +20,7 @@ spring:
       date-time: yyyy-MM-dd HH:mm:ss
 
 server:
-  port: ${SERVER_PORT:19008}
+  port: 19008
 
 mybatis-plus:
   configuration:
@@ -38,5 +38,5 @@ digital-expert:
     release-timeout-ms: 1800000
   proxy:
     timeout-ms: 15000
-    base-url: http://192.168.50.18:19300
+    base-url: http://127.0.0.1:19300
   static-package: /var/dacheng/upload/static
