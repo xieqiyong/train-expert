@@ -31,7 +31,7 @@ mybatis-plus:
 digital-expert:
   training:
     output-root: /app/agent/output/
-    spec-skill-path: /app/root-skills-creator/
+    spec-skill-path: /app/skills/root-skills-creator/
     poll-interval-ms: 5000
     session-timeout-ms: 1800000
     artifact-grace-period-ms: 120000

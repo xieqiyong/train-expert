@@ -351,36 +351,51 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private List<Long> importSkillPackages(List<Path> skillDirectories) {
         List<Long> skillIds = new ArrayList<>();
         for (Path skillDirectory : skillDirectories) {
-            byte[] zipBytes = zipArchiveService.zipDirectory(skillDirectory);
             String packageName = resolvePackageName(skillDirectory);
-            SkillArchiveMetadata metadata = zipArchiveService.inspectSkillArchive(zipBytes, packageName);
+            Path tempDirectory = createSkillPackageTempDirectory();
+            try {
+                Path tempArchivePath = tempDirectory.resolve(packageName);
+                zipArchiveService.zipDirectory(skillDirectory, tempArchivePath);
+                SkillArchiveMetadata metadata = zipArchiveService.inspectSkillArchive(tempArchivePath, packageName);
+                String checksum = zipArchiveService.sha256Hex(tempArchivePath);
 
-            LocalDateTime now = LocalDateTime.now();
-            SkillPackageEntity entity = new SkillPackageEntity();
-            entity.setName(metadata.name());
-            entity.setDescription(metadata.description());
-            entity.setPackageName(packageName);
-            entity.setChecksum(zipArchiveService.sha256Hex(zipBytes));
-            entity.setStatus(PackageStatus.ACTIVE.name());
-            entity.setPackagePath("");
-            entity.setCreatedAt(now);
-            entity.setUpdatedAt(now);
-            skillPackageMapper.insert(entity);
+                LocalDateTime now = LocalDateTime.now();
+                SkillPackageEntity entity = new SkillPackageEntity();
+                entity.setName(metadata.name());
+                entity.setDescription(metadata.description());
+                entity.setPackageName(packageName);
+                entity.setChecksum(checksum);
+                entity.setStatus(PackageStatus.ACTIVE.name());
+                entity.setPackagePath("");
+                entity.setCreatedAt(now);
+                entity.setUpdatedAt(now);
+                skillPackageMapper.insert(entity);
 
-            Path directory = sharedStorageService.resolveSkillDirectory(entity.getId());
-            sharedStorageService.recreateDirectory(directory);
-            Path packagePath = directory.resolve(packageName);
-            sharedStorageService.writeBytes(packagePath, zipBytes);
-            entity.setPackagePath(sharedStorageService.toStoragePath(packagePath));
-            entity.setUpdatedAt(LocalDateTime.now());
-            skillPackageMapper.updateById(entity);
-            skillIds.add(entity.getId());
+                Path directory = sharedStorageService.resolveSkillDirectory(entity.getId());
+                sharedStorageService.recreateDirectory(directory);
+                Path packagePath = directory.resolve(packageName);
+                sharedStorageService.moveFile(tempArchivePath, packagePath);
+                entity.setPackagePath(sharedStorageService.toStoragePath(packagePath));
+                entity.setUpdatedAt(LocalDateTime.now());
+                skillPackageMapper.updateById(entity);
+                skillIds.add(entity.getId());
+            } finally {
+                sharedStorageService.deleteRecursively(tempDirectory);
+            }
         }
         if (skillIds.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "未找到可导入的技能包");
         }
         return skillIds;
+    }
+
+    private Path createSkillPackageTempDirectory() {
+        Path tempDirectory = sharedStorageService.resolveTemporaryDirectory("skill-import")
+                .resolve(AgentSessionId.generate())
+                .normalize();
+        sharedStorageService.createDirectories(tempDirectory);
+        return tempDirectory;
     }
 
     @Transactional
@@ -504,8 +519,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             builder.append("规范路径: ").append(specSkillPath).append("\n");
         }
         builder.append("要求:\n")
-                .append("1. 使用 skill-creator，按规范生成 1 个 skill。\n")
-                .append("2. 根目录名必须是 ").append(skillDirName).append("，每次训练都要改写或追加根目录下的 SKILL.md。\n")
+                .append("1. 使用 root-skill-creator，按规范生成 1 个 skill。\n")
+                .append("2. 根目录名必须是 ").append(skillDirName).append("，每次训练都要改写或追加技能根目录下的 SKILL.md。\n")
                 .append("3. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n")
                 .append("4. 需要将 jars 解压到 static_package 中，不要在版本目录保留 jar 文件。\n");
         return builder.toString();

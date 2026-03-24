@@ -43,26 +43,48 @@ public class ZipArchiveService {
             throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包必须是 zip 文件");
         }
         String skillMd = extractSkillMd(archiveBytes);
-        String name = extractMetadata(NAME_PATTERN, skillMd);
-        String description = extractMetadata(DESCRIPTION_PATTERN, skillMd);
-        if (name == null || description == null) {
-            throw BusinessException.badRequest(
-                    ErrorCode.SKILL_MD_MISSING_NAME_OR_DESCRIPTION,
-                    "SKILL.md 必须同时包含 name 和 description"
-            );
+        return resolveSkillArchiveMetadata(skillMd);
+    }
+
+    public SkillArchiveMetadata inspectSkillArchive(Path archivePath, String originalFilename) {
+        if (archivePath == null || !Files.isRegularFile(archivePath)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包文件不存在: " + archivePath);
         }
-        return new SkillArchiveMetadata(name, description);
+        if (originalFilename == null || !originalFilename.toLowerCase(Locale.ROOT).endsWith(ZIP_SUFFIX)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包必须是 zip 文件");
+        }
+        String skillMd = extractSkillMd(archivePath);
+        return resolveSkillArchiveMetadata(skillMd);
     }
 
     public String sha256Hex(byte[] bytes) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(bytes);
-            StringBuilder builder = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                builder.append(String.format("%02x", b));
+            return toHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "SHA-256 不可用");
+        }
+    }
+
+    public String sha256Hex(Path path) {
+        if (path == null || !Files.isRegularFile(path)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "文件不存在: " + path);
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream inputStream = Files.newInputStream(path)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = inputStream.read(buffer)) >= 0) {
+                    if (read > 0) {
+                        digest.update(buffer, 0, read);
+                    }
+                }
             }
-            return builder.toString();
+            return toHex(digest.digest());
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "计算文件校验和失败: " + path);
         } catch (NoSuchAlgorithmException ex) {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "SHA-256 不可用");
         }
@@ -118,6 +140,35 @@ public class ZipArchiveService {
         }
     }
 
+    public void zipDirectory(Path directory, Path archivePath) {
+        if (directory == null || !Files.isDirectory(directory)) {
+            throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID, "技能目录不存在: " + directory);
+        }
+        if (archivePath == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "技能包输出路径不能为空");
+        }
+        try {
+            Files.createDirectories(Objects.requireNonNull(archivePath.getParent()));
+            try (OutputStream output = Files.newOutputStream(archivePath);
+                 ZipArchiveOutputStream zipOutputStream = createZipOutputStream(output);
+                 Stream<Path> files = Files.walk(directory)) {
+                files.filter(Files::isRegularFile).forEach(path -> {
+                    String relative = normalizeEntryPath(directory.relativize(path).toString());
+                    try {
+                        addFileEntry(zipOutputStream, relative, path);
+                    } catch (IOException ex) {
+                        throw new IllegalStateException("向 zip 添加文件失败: " + path, ex);
+                    }
+                });
+                zipOutputStream.finish();
+            }
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "压缩目录失败: " + directory);
+        } catch (IllegalStateException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, ex.getMessage());
+        }
+    }
+
     public void extractZipToDirectory(Path archivePath, Path targetDirectory, boolean stripWrapperDirectory) {
         if (archivePath == null || !Files.isRegularFile(archivePath)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包文件不存在: " + archivePath);
@@ -158,6 +209,18 @@ public class ZipArchiveService {
         } catch (IOException ex) {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "解压技能包失败: " + archivePath);
         }
+    }
+
+    private SkillArchiveMetadata resolveSkillArchiveMetadata(String skillMd) {
+        String name = extractMetadata(NAME_PATTERN, skillMd);
+        String description = extractMetadata(DESCRIPTION_PATTERN, skillMd);
+        if (name == null || description == null) {
+            throw BusinessException.badRequest(
+                    ErrorCode.SKILL_MD_MISSING_NAME_OR_DESCRIPTION,
+                    "SKILL.md 必须同时包含 name 和 description"
+            );
+        }
+        return new SkillArchiveMetadata(name, description);
     }
 
     private ZipArchiveOutputStream createZipOutputStream(OutputStream outputStream) {
@@ -272,6 +335,36 @@ public class ZipArchiveService {
         throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包中未找到 SKILL.md");
     }
 
+    private String extractSkillMd(Path archivePath) {
+        try (ZipFile zipFile = new ZipFile(archivePath.toFile(), StandardCharsets.UTF_8)) {
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            String fallbackSkillMd = null;
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String entryName = normalizeEntryPath(entry.getName());
+                if (SKILL_FILE_NAME.equals(entryName)) {
+                    try (InputStream inputStream = zipFile.getInputStream(entry)) {
+                        return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                }
+                if (fallbackSkillMd == null && entryName.endsWith("/" + SKILL_FILE_NAME)) {
+                    try (InputStream inputStream = zipFile.getInputStream(entry)) {
+                        fallbackSkillMd = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                    }
+                }
+            }
+            if (fallbackSkillMd != null) {
+                return fallbackSkillMd;
+            }
+        } catch (IOException ex) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能 zip 包无效");
+        }
+        throw BusinessException.badRequest(ErrorCode.INVALID_SKILL_PACKAGE, "技能包中未找到 SKILL.md");
+    }
+
     private String resolveArchiveRootDirectory(Path fileName) {
         String rawName = fileName == null ? "expert-package" : fileName.toString();
         String baseName = rawName.toLowerCase(Locale.ROOT).endsWith(ZIP_SUFFIX)
@@ -317,5 +410,13 @@ public class ZipArchiveService {
             return matcher.group(1).trim();
         }
         return null;
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            builder.append(String.format("%02x", b));
+        }
+        return builder.toString();
     }
 }

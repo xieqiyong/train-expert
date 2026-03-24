@@ -43,6 +43,10 @@ public class SharedStorageService {
         return resolveExpertRoot(expertId).resolve("staging").resolve(taskId).normalize();
     }
 
+    public Path resolveTemporaryDirectory(String category) {
+        return getStaticPackage().resolve("tmp").resolve(category).normalize();
+    }
+
     public void recreateDirectory(Path directory) {
         deleteRecursively(directory);
         createDirectories(directory);
@@ -64,6 +68,18 @@ public class SharedStorageService {
             Files.write(target, data, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException ex) {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "写入文件失败: " + target);
+        }
+    }
+
+    public void moveFile(Path source, Path target) {
+        ensureWithinSharedRoot(source);
+        ensureWithinSharedRoot(target);
+        createDirectories(target.getParent());
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                    "移动文件失败: " + source + " -> " + target);
         }
     }
 
