@@ -5,6 +5,7 @@ import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertBatchQueryRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertConfigResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertIdRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
@@ -61,10 +62,16 @@ public class DigitalExpertController {
         return ApiResponse.success(digitalExpertService.createExpert(request));
     }
 
+    @PostMapping("/list")
+    public ApiResponse<List<ExpertSummaryResponse>> listExperts(@Valid @RequestBody ExpertBatchQueryRequest request) {
+        return ApiResponse.success(digitalExpertService.listExpertsByNames(request.names()));
+    }
+
     @PostMapping(value = "/manual/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<ManualCreateExpertResponse> createManualExpert(@RequestParam("name") String name,
                                                                       @RequestParam(value = "description", required = false) String description,
                                                                       @RequestParam(value = "prompt", required = false) String prompt,
+                                                                      @RequestParam(value = "expertType", required = false) String expertType,
                                                                       @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
                                                                       @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease,
                                                                       @RequestPart("skillFiles") List<MultipartFile> skillFiles) {
@@ -73,6 +80,7 @@ public class DigitalExpertController {
                         name,
                         description,
                         prompt,
+                        expertType,
                         parseMcpsJson(mcpsJson),
                         autoRelease
                 ),

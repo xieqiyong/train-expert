@@ -21,6 +21,7 @@ import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
+import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
@@ -37,8 +38,11 @@ import com.databuff.digitalexpert.service.StaticPackageService;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,6 +84,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         entity.setName(name);
         entity.setDescription(normalizeOptionalText(request.description()));
         entity.setPrompt(normalizeOptionalText(request.prompt()));
+        entity.setExpertType(resolveExpertType(request.expertType()));
         entity.setStatus(ExpertStatus.DRAFT.name());
         entity.setReleaseVersion(0);
         entity.setTrainingVersion(0);
@@ -87,6 +92,29 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         entity.setUpdatedAt(now);
         digitalExpertMapper.insert(entity);
         return toSummary(entity);
+    }
+
+    @Override
+    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names) {
+        List<String> normalizedNames = normalizeQueryNames(names);
+        if (normalizedNames.isEmpty()) {
+            return List.of();
+        }
+        List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(new LambdaQueryWrapper<DigitalExpertEntity>()
+                .in(DigitalExpertEntity::getName, normalizedNames)
+                .orderByAsc(DigitalExpertEntity::getId));
+        Map<String, ExpertSummaryResponse> expertMap = new LinkedHashMap<>();
+        for (DigitalExpertEntity expert : experts) {
+            expertMap.put(expert.getName(), toSummary(expert));
+        }
+        List<ExpertSummaryResponse> result = new ArrayList<>();
+        for (String normalizedName : normalizedNames) {
+            ExpertSummaryResponse expert = expertMap.get(normalizedName);
+            if (expert != null) {
+                result.add(expert);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -100,7 +128,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         ExpertSummaryResponse expert = createExpert(new CreateExpertRequest(
                 request.name(),
                 request.description(),
-                request.prompt()
+                request.prompt(),
+                request.expertType()
         ));
 
         List<SkillPackageResponse> uploadedSkills = new ArrayList<>();
@@ -252,8 +281,45 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 entity.getId(),
                 entity.getName(),
                 entity.getDescription(),
+                entity.getExpertType(),
                 entity.getStatus()
         );
+    }
+
+    private List<String> normalizeQueryNames(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return List.of();
+        }
+        Set<String> values = new LinkedHashSet<>();
+        for (String name : names) {
+            values.add(normalizeName(name));
+        }
+        return List.copyOf(values);
+    }
+
+    private String resolveExpertType(String expertType) {
+        if (expertType == null || expertType.isBlank()) {
+            return ExpertType.SERVICE.name();
+        }
+        String normalizedType = expertType.trim();
+        if ("服务类型".equals(normalizedType)) {
+            return ExpertType.SERVICE.name();
+        }
+        if ("内置类型".equals(normalizedType)) {
+            return ExpertType.BUILTIN.name();
+        }
+        if ("故障分析".equals(normalizedType)) {
+            return ExpertType.FAULT_ANALYSIS.name();
+        }
+        normalizedType = normalizedType.toUpperCase(Locale.ROOT);
+        try {
+            return ExpertType.valueOf(normalizedType).name();
+        } catch (IllegalArgumentException ex) {
+            throw BusinessException.badRequest(
+                    ErrorCode.INVALID_REQUEST,
+                    "专家类型不支持，当前仅支持：SERVICE、BUILTIN、FAULT_ANALYSIS"
+            );
+        }
     }
 
     private List<Long> deduplicateIds(List<Long> ids) {

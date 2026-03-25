@@ -7,6 +7,7 @@ public record ExpertConfigResponse(
         String name,
         String description,
         String prompt,
+        String expertType,
         String status,
         String sharedPath,
         String configJsonPath,

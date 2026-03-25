@@ -13,6 +13,8 @@ public interface DigitalExpertService {
 
     ExpertSummaryResponse createExpert(CreateExpertRequest request);
 
+    List<ExpertSummaryResponse> listExpertsByNames(List<String> names);
+
     ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles);
 
     ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request);

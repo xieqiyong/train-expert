@@ -4,6 +4,7 @@ public record ExpertSummaryResponse(
         Long id,
         String name,
         String description,
+        String expertType,
         String status
 ) {
 }

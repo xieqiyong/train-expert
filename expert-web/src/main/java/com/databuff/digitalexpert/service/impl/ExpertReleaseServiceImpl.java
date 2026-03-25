@@ -297,6 +297,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
                 expert.getName(),
                 expert.getDescription(),
                 expert.getPrompt(),
+                expert.getExpertType(),
                 ExpertStatus.STARTED.name(),
                 sharedStorageService.toStoragePath(currentDirectory),
                 sharedStorageService.toStoragePath(currentConfigPath),

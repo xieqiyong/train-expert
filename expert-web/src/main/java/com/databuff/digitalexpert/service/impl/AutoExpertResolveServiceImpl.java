@@ -6,6 +6,7 @@ import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
+import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.service.AutoExpertResolveService;
 import com.databuff.digitalexpert.service.DigitalExpertService;
@@ -32,7 +33,7 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
 
         try {
             ExpertSummaryResponse expert = digitalExpertService.createExpert(
-                    new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null)
+                    new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null, ExpertType.SERVICE.name())
             );
             return new ResolvedExpert(expert.id(), expert.name(), true);
         } catch (BusinessException ex) {

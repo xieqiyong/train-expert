@@ -6,6 +6,7 @@ public record CreateManualExpertRequest(
         String name,
         String description,
         String prompt,
+        String expertType,
         List<McpBindingRequest> mcps,
         boolean autoRelease
 ) {

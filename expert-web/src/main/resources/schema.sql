@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS `digital_expert` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) NOT NULL COMMENT '专家名称',
   `description` varchar(512) DEFAULT NULL COMMENT '专家描述',
+  `prompt` varchar(512) DEFAULT NULL COMMENT '专家提示词',
+  `expert_type` varchar(32) NOT NULL DEFAULT 'SERVICE' COMMENT '专家类型：SERVICE/BUILTIN/FAULT_ANALYSIS',
   `status` varchar(32) NOT NULL COMMENT '专家状态：DRAFT/TRAINING/STARTED/DISABLED',
   `shared_path` text COMMENT '共享目录路径',
   `config_json_path` text COMMENT '专家配置文件路径',
@@ -145,5 +147,3 @@ CREATE TABLE IF NOT EXISTS `static_package` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='静态资源包';
-
--- ALTER TABLE digital_expert ADD COLUMN prompt TEXT COMMENT '专家提示词';

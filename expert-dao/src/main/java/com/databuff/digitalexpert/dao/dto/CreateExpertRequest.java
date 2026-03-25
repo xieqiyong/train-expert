@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 public record CreateExpertRequest(
         @NotBlank String name,
         String description,
-        String prompt
+        String prompt,
+        String expertType
 ) {
 }
