@@ -522,7 +522,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 .append("1. 使用 root-skill-creator，按规范生成 1 个 skill。\n")
                 .append("2. 根目录名必须是 ").append(skillDirName).append("，每次训练都要改写或追加技能根目录下的 SKILL.md。\n")
                 .append("3. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n")
-                .append("4. 需要将 jars 解压到 static_package 中，不要在版本目录保留 jar 文件。\n");
+                .append("4. 需要将 jars 反编译然后解压到 static_package 中，不要在版本目录保留 jar 文件。\n");
         return builder.toString();
     }
 
