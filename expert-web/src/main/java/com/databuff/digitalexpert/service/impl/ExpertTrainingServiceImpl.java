@@ -117,10 +117,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
         List<TrainingSourceRequest> normalizedSources = normalizeSources(request.sources());
         String taskId = AgentSessionId.generate();
-        String skillDirName = resolveSkillDirectoryName(normalizedSources, taskId);
-        AppInfoSource appInfoSource = findAppInfoSource(normalizedSources);
+        String skillDirName = resolveSkillDirectoryName(expert.getName(), normalizedSources, taskId);
         Path skillRootDirectory = resolveSkillRootDirectory(expertId, skillDirName);
-        Path outputDirectory = resolveTrainingOutputDirectory(skillRootDirectory, appInfoSource);
+        Path outputDirectory = resolveTrainingOutputDirectory(skillRootDirectory, normalizedSources);
 
         LocalDateTime now = LocalDateTime.now();
         ExpertTrainingTaskEntity task = new ExpertTrainingTaskEntity();
@@ -203,7 +202,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             recreateTrainingVersionDirectory(outputDir);
 
             List<TrainingSourceRequest> sources = parseSources(task.getSourceManifestJson());
-            String skillDirName = resolveSkillDirectoryName(sources, taskId);
+            DigitalExpertEntity expert = expertConfigService.requireExpert(task.getExpertId());
+            String skillDirName = resolveSkillDirectoryName(expert.getName(), sources, taskId);
             Path versionDirectory = outputDir;
             String prompt = buildPrompt(trainingGoal, sources, skillDirName, skillRootDirectory, versionDirectory);
             TrainingProxyClient.ProxySubmitResult submitResult = trainingProxyClient.submitTraining(
@@ -219,10 +219,10 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             task.setUpdatedAt(LocalDateTime.now());
             expertTrainingTaskMapper.updateById(task);
 
-            DigitalExpertEntity expert = expertConfigService.requireExpert(task.getExpertId());
-            expert.setLastTrainingSessionId(taskId);
-            expert.setUpdatedAt(LocalDateTime.now());
-            digitalExpertMapper.updateById(expert);
+            DigitalExpertEntity expert1 = expertConfigService.requireExpert(task.getExpertId());
+            expert1.setLastTrainingSessionId(taskId);
+            expert1.setUpdatedAt(LocalDateTime.now());
+            digitalExpertMapper.updateById(expert1);
         } catch (Exception ex) {
             log.error("提交训练任务到代理失败, taskId={}", taskId, ex);
             markTaskFailed(taskId, ex.getMessage());
@@ -518,29 +518,30 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                         .append(". [")
                         .append(source.sourceType())
                         .append("] ")
-                        .append(source.sourceValue())
-                        .append("\n");
+                        .append(source.sourceValue());
+                if (StringUtils.hasText(source.sourceVersion())) {
+                    builder.append(" (版本/分支: ").append(source.sourceVersion()).append(")");
+                }
+                builder.append("\n");
             }
         }
 
         builder.append("技能根目录: ").append(skillRootDirectory).append("\n");
         builder.append("技能文件: ").append(skillRootDirectory.resolve("SKILL.md")).append("\n");
+        builder.append("版本索引文件: ").append(skillRootDirectory.resolve("版本索引.md")).append("\n");
         builder.append("版本目录: ").append(versionDirectory).append("\n");
         builder.append("静态资源目录: ").append(versionDirectory.resolve("static_package")).append("\n");
         if (specSkillPath != null) {
             builder.append("规范路径: ").append(specSkillPath).append("\n");
         }
         builder.append("要求:\n")
-                .append("1. 使用 root-skill-creator，按规范生成 1 个 skill。\n")
+                .append("1. 使用 root-skills-creator，按规范生成 1 个 skill。\n")
                 .append("2. 根目录名必须是 ").append(skillDirName).append("，每次训练都要改写或追加技能根目录下的 SKILL.md。\n")
-                .append("3. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n")
-                .append("4. 静态代码须按顺序处理：① 先使用 CFR 反编译，固定使用工具路径 /opt/cfr/cfr.jar（例如 java -jar /opt/cfr/cfr.jar …）对输入的 jar 反编译，得到 Java 源码（.java）；")
-                .append("② 若反编译产物为压缩包，再解压并释放到上述「静态资源目录」（static_package）下对应路径；")
-                .append("③ 最终 static_package 目录树中应以 .java 源文件为主，便于阅读与检索；")
-                .append("不要在版本目录或 static_package 中保留未处理的 jar。\n");
+                .append("3. 必须在技能根目录生成或更新 版本索引.md，并在根 SKILL.md 最下方追加本次版本信息。\n")
+                .append("4. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n");
+        appendStaticPackagePrompt(builder, sources, versionDirectory);
         return builder.toString();
     }
-
     private Path resolveConfiguredSpecSkillPath() {
         String configuredPath = properties.getTraining().getSpecSkillPath();
         if (!StringUtils.hasText(configuredPath)) {
@@ -589,6 +590,11 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "技能根目录缺少 SKILL.md: " + skillRootDirectory);
         }
+        Path versionIndexPath = skillRootDirectory.resolve("版本索引.md");
+        if (!Files.isRegularFile(versionIndexPath)) {
+            throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
+                    "技能根目录缺少 版本索引.md: " + skillRootDirectory);
+        }
         if (!Files.exists(versionDirectory) || !Files.isDirectory(versionDirectory)) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "版本目录不存在: " + versionDirectory);
@@ -599,7 +605,6 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                     "版本目录缺少 static_package: " + versionDirectory);
         }
     }
-
     private void persistSkillManifest(ExpertTrainingTaskEntity task, List<Path> skillDirectories) {
         task.setManifestPath(buildSkillManifestJson(skillDirectories));
         task.setUpdatedAt(LocalDateTime.now());
@@ -628,12 +633,16 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         return message.contains("训练输出目录不存在")
                 || message.contains("技能根目录不存在")
                 || message.contains("缺少 SKILL.md")
+                || message.contains("缺少 版本索引.md")
                 || message.contains("版本目录不存在")
                 || message.contains("缺少 static_package")
                 || message.contains("无法从版本目录解析技能根目录");
     }
-
-    private String resolveSkillDirectoryName(List<TrainingSourceRequest> sources, String taskId) {
+    private String resolveSkillDirectoryName(String expertName, List<TrainingSourceRequest> sources, String taskId) {
+        String normalizedExpertName = normalizeSkillDirectoryName(expertName);
+        if (StringUtils.hasText(normalizedExpertName)) {
+            return normalizedExpertName;
+        }
         if (sources != null) {
             for (TrainingSourceRequest source : sources) {
                 AppInfoSource appInfoSource = resolveAppInfoSource(source);
@@ -655,13 +664,12 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         return "generated_skill_" + taskId.substring(0, Math.min(taskId.length(), 8));
     }
-
     private String extractSourceFileName(TrainingSourceRequest source) {
         if (source == null || !StringUtils.hasText(source.sourceType()) || !StringUtils.hasText(source.sourceValue())) {
             return null;
         }
         if (TrainingSourceType.GIT_URL.name().equals(source.sourceType())) {
-            return null;
+            return removeExtension(extractFileNameFromUrl(source.sourceValue()));
         }
         AppInfoSource appInfoSource = resolveAppInfoSource(source);
         if (appInfoSource != null && StringUtils.hasText(appInfoSource.appName())) {
@@ -1025,18 +1033,38 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         return Path.of(outputPath).normalize();
     }
 
-    private Path resolveTrainingOutputDirectory(Path skillRootDirectory, AppInfoSource appInfoSource) {
-        String versionDirectoryName = resolveVersionDirectoryName(skillRootDirectory, appInfoSource);
+    private Path resolveTrainingOutputDirectory(Path skillRootDirectory, List<TrainingSourceRequest> sources) {
+        String versionDirectoryName = resolveVersionDirectoryName(skillRootDirectory, sources);
         return skillRootDirectory.resolve(versionDirectoryName).normalize();
     }
 
-    private String resolveVersionDirectoryName(Path skillRootDirectory, AppInfoSource appInfoSource) {
+    private String resolveVersionDirectoryName(Path skillRootDirectory, List<TrainingSourceRequest> sources) {
+        String requestedVersion = resolveRequestedSourceVersion(sources);
+        if (StringUtils.hasText(requestedVersion)) {
+            return requestedVersion;
+        }
+        AppInfoSource appInfoSource = findAppInfoSource(sources);
         if (appInfoSource != null && StringUtils.hasText(appInfoSource.serviceVersion())) {
             return appInfoSource.serviceVersion();
         }
         return resolveNextAutoVersionDirectoryName(skillRootDirectory);
     }
 
+    private String resolveRequestedSourceVersion(List<TrainingSourceRequest> sources) {
+        if (sources == null || sources.isEmpty()) {
+            return null;
+        }
+        for (TrainingSourceRequest source : sources) {
+            if (source == null || !StringUtils.hasText(source.sourceVersion())) {
+                continue;
+            }
+            String normalized = normalizeVersionDirectoryName(source.sourceVersion());
+            if (StringUtils.hasText(normalized)) {
+                return normalized;
+            }
+        }
+        return null;
+    }
     private String resolveNextAutoVersionDirectoryName(Path skillRootDirectory) {
         if (!Files.exists(skillRootDirectory) || !Files.isDirectory(skillRootDirectory)) {
             return "v1";
@@ -1120,8 +1148,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
     private List<TrainingSourceRequest> normalizeSources(List<TrainingSourceRequest> sources) {
         if (sources == null || sources.isEmpty()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
-                    "训练源不能为空");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "训练源不能为空");
         }
         List<TrainingSourceRequest> result = new ArrayList<>();
         for (TrainingSourceRequest source : sources) {
@@ -1130,25 +1157,22 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             }
             String type = source.sourceType() == null ? "" : source.sourceType().trim().toUpperCase(Locale.ROOT);
             String value = source.sourceValue() == null ? "" : source.sourceValue().trim();
+            String version = source.sourceVersion() == null ? null : source.sourceVersion().trim();
             if (!StringUtils.hasText(type) || !StringUtils.hasText(value)) {
-                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
-                        "sourceType 和 sourceValue 不能为空");
+                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "sourceType 和 sourceValue 不能为空");
             }
             try {
                 TrainingSourceType.valueOf(type);
             } catch (IllegalArgumentException ex) {
-                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
-                        "不支持的 sourceType: " + type);
+                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "不支持的 sourceType: " + type);
             }
-            result.add(new TrainingSourceRequest(type, value));
+            result.add(new TrainingSourceRequest(type, value, StringUtils.hasText(version) ? version : null));
         }
         if (result.isEmpty()) {
-            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
-                    "训练源不能为空");
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "训练源不能为空");
         }
         return result;
     }
-
     private List<TrainingSourceRequest> parseSources(String sourceManifestJson) {
         if (!StringUtils.hasText(sourceManifestJson)) {
             return List.of();
@@ -1165,13 +1189,47 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             }
             String type = item.getString("sourceType");
             String value = item.getString("sourceValue");
+            String version = item.getString("sourceVersion");
             if (StringUtils.hasText(type) && StringUtils.hasText(value)) {
-                result.add(new TrainingSourceRequest(type, value));
+                result.add(new TrainingSourceRequest(type, value, StringUtils.hasText(version) ? version.trim() : null));
             }
         }
         return result;
     }
 
+    private void appendStaticPackagePrompt(StringBuilder builder,
+                                           List<TrainingSourceRequest> sources,
+                                           Path versionDirectory) {
+        if (findAppInfoSource(sources) != null) {
+            builder.append("5. 静态代码需要先使用 CFR 反编译，固定使用工具路径 /opt/cfr/cfr.jar，得到可阅读的 Java 源码。\n")
+                    .append("6. 将反编译后的有效文件整理到 ")
+                    .append(versionDirectory.resolve("static_package"))
+                    .append("，不要保留未处理的 jar。\n");
+            return;
+        }
+        if (hasSourceType(sources, TrainingSourceType.GIT_URL)) {
+            builder.append("5. 需要基于指定分支的 Git 仓库生成 skill，并将该版本相关的关键文档、目录结构和必要源码快照整理到 ")
+                    .append(versionDirectory.resolve("static_package"))
+                    .append("。\n")
+                    .append("6. 不要保留 .git、缓存目录或无关大文件。\n");
+            return;
+        }
+        builder.append("5. 需要将文档压缩包中的有效文档、目录结构和必要示例整理到 ")
+                .append(versionDirectory.resolve("static_package"))
+                .append("，保留可阅读的文本内容。\n")
+                .append("6. 不要生成无关压缩包或不可读的二进制快照。\n");
+    }
+    private boolean hasSourceType(List<TrainingSourceRequest> sources, TrainingSourceType sourceType) {
+        if (sources == null || sources.isEmpty() || sourceType == null) {
+            return false;
+        }
+        for (TrainingSourceRequest source : sources) {
+            if (source != null && sourceType.name().equals(source.sourceType())) {
+                return true;
+            }
+        }
+        return false;
+    }
     private String resolvePackageName(Path skillDirectory) {
         String base = skillDirectory.getFileName() == null ? "generated-skill" : skillDirectory.getFileName().toString();
         String normalized = base.replaceAll("[^A-Za-z0-9._-]", "_");
@@ -1224,3 +1282,5 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     ) {
     }
 }
+
+

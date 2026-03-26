@@ -60,3 +60,12 @@ digital-expert:
   agent:
     skills-output:
       - /app/agent/agent-business/skills/
+
+opencode:
+  enabled: true
+  host: 127.0.0.1
+  port: 4096
+  connect-timeout: 5s
+  read-timeout: 5m
+  directory:
+  workspace:
