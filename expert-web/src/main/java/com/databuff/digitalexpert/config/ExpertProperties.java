@@ -42,6 +42,11 @@ public class ExpertProperties {
      */
     private Agent agent = new Agent();
 
+    /**
+     * 跨域配置。
+     */
+    private Cors cors = new Cors();
+
     @Getter
     @Setter
     public static class Release {
@@ -155,5 +160,51 @@ public class ExpertProperties {
          * 训练成功后，技能包解压输出目录列表。
          */
         private List<String> skillsOutput = new ArrayList<>();
+    }
+    @Getter
+    @Setter
+    public static class Cors {
+
+        /**
+         * 是否启用全局跨域。
+         */
+        private boolean enabled = true;
+
+        /**
+         * 跨域生效的路径匹配规则。
+         */
+        @NotBlank
+        private String pathPattern = "/api/**";
+
+        /**
+         * 允许的来源匹配列表。
+         */
+        private List<String> allowedOriginPatterns = new ArrayList<>(List.of("*"));
+
+        /**
+         * 允许的请求方法。
+         */
+        private List<String> allowedMethods = new ArrayList<>(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        /**
+         * 允许的请求头。
+         */
+        private List<String> allowedHeaders = new ArrayList<>(List.of("*"));
+
+        /**
+         * 允许前端读取的响应头。
+         */
+        private List<String> exposedHeaders = new ArrayList<>(List.of("Content-Disposition"));
+
+        /**
+         * 是否允许携带凭证。
+         */
+        private boolean allowCredentials = false;
+
+        /**
+         * 预检请求缓存时间，单位秒。
+         */
+        @Min(0)
+        private long maxAgeSeconds = 3600;
     }
 }

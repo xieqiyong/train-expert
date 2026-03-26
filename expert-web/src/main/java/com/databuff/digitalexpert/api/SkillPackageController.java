@@ -5,6 +5,7 @@ import com.databuff.digitalexpert.dao.dto.IdRequest;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.databuff.digitalexpert.service.SkillPackageService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
@@ -31,5 +32,10 @@ public class SkillPackageController {
     @PostMapping("/detail")
     public ApiResponse<SkillPackageResponse> getById(@Valid @RequestBody IdRequest request) {
         return ApiResponse.success(skillPackageService.getById(request.id()));
+    }
+
+    @PostMapping("/list")
+    public ApiResponse<List<SkillPackageResponse>> listPackages() {
+        return ApiResponse.success(skillPackageService.listPackages());
     }
 }

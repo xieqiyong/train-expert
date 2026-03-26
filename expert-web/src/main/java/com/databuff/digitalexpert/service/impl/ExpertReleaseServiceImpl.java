@@ -106,6 +106,18 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
         return toResponse(entity);
     }
 
+    @Override
+    public List<ExpertReleaseTaskResponse> listTasks(Long expertId) {
+        LambdaQueryWrapper<ExpertReleaseTaskEntity> queryWrapper = new LambdaQueryWrapper<ExpertReleaseTaskEntity>()
+                .orderByDesc(ExpertReleaseTaskEntity::getId);
+        if (expertId != null) {
+            queryWrapper.eq(ExpertReleaseTaskEntity::getExpertId, expertId);
+        }
+        return expertReleaseTaskMapper.selectList(queryWrapper).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public void runTask(String taskId) {
         ExpertReleaseTaskEntity task = requireTask(taskId);
         Path stagingDirectory = null;

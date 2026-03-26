@@ -21,6 +21,7 @@ import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
+import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
@@ -95,14 +96,27 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     }
 
     @Override
-    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names) {
+    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType) {
         List<String> normalizedNames = normalizeQueryNames(names);
+        String normalizedExpertType = expertType == null ? null : expertType.name();
         if (normalizedNames.isEmpty()) {
-            return List.of();
+            LambdaQueryWrapper<DigitalExpertEntity> queryWrapper = new LambdaQueryWrapper<DigitalExpertEntity>()
+                    .orderByDesc(DigitalExpertEntity::getId);
+            if (normalizedExpertType != null) {
+                queryWrapper.eq(DigitalExpertEntity::getExpertType, normalizedExpertType);
+            }
+            return digitalExpertMapper.selectList(queryWrapper)
+                    .stream()
+                    .map(this::toSummary)
+                    .toList();
         }
-        List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(new LambdaQueryWrapper<DigitalExpertEntity>()
+        LambdaQueryWrapper<DigitalExpertEntity> queryWrapper = new LambdaQueryWrapper<DigitalExpertEntity>()
                 .in(DigitalExpertEntity::getName, normalizedNames)
-                .orderByAsc(DigitalExpertEntity::getId));
+                .orderByDesc(DigitalExpertEntity::getId);
+        if (normalizedExpertType != null) {
+            queryWrapper.eq(DigitalExpertEntity::getExpertType, normalizedExpertType);
+        }
+        List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(queryWrapper);
         Map<String, ExpertSummaryResponse> expertMap = new LinkedHashMap<>();
         for (DigitalExpertEntity expert : experts) {
             expertMap.put(expert.getName(), toSummary(expert));
@@ -213,7 +227,17 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
-    public ExpertSummaryResponse disableExpert(Long expertId) {
+    public ExpertSummaryResponse changeExpertStatus(Long expertId, ExpertStatusOperation operation) {
+        if (operation == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家状态操作不能为空");
+        }
+        return switch (operation) {
+            case ENABLE -> enableExpertInternal(expertId);
+            case DISABLE -> disableExpertInternal(expertId);
+        };
+    }
+
+    private ExpertSummaryResponse disableExpertInternal(Long expertId) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
@@ -230,6 +254,32 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         LocalDateTime now = LocalDateTime.now();
         expert.setStatus(ExpertStatus.DISABLED.name());
         expert.setDisabledAt(now);
+        expert.setUpdatedAt(now);
+        digitalExpertMapper.updateById(expert);
+        return toSummary(expert);
+    }
+
+    private ExpertSummaryResponse enableExpertInternal(Long expertId) {
+        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        if (hasActiveReleaseTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
+                    "专家存在进行中的发布任务: " + expertId
+            );
+        }
+        if (hasActiveTrainingTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_TRAINING_TASK_EXISTS,
+                    "专家存在进行中的训练任务: " + expertId
+            );
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (expert.getReleaseVersion() != null && expert.getReleaseVersion() > 0) {
+            expert.setStatus(ExpertStatus.STARTED.name());
+        } else {
+            expert.setStatus(ExpertStatus.DRAFT.name());
+        }
+        expert.setDisabledAt(null);
         expert.setUpdatedAt(now);
         digitalExpertMapper.updateById(expert);
         return toSummary(expert);

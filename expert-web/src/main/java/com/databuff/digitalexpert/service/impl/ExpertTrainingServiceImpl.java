@@ -154,6 +154,18 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     @Override
+    public List<ExpertTrainingTaskResponse> listTasks(Long expertId) {
+        LambdaQueryWrapper<ExpertTrainingTaskEntity> queryWrapper = new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                .orderByDesc(ExpertTrainingTaskEntity::getId);
+        if (expertId != null) {
+            queryWrapper.eq(ExpertTrainingTaskEntity::getExpertId, expertId);
+        }
+        return expertTrainingTaskMapper.selectList(queryWrapper).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
     @Scheduled(fixedDelayString = "${digital-expert.training.poll-interval-ms:5000}")
     public void pollTrainingTasks() {
         List<ExpertTrainingTaskEntity> tasks = expertTrainingTaskMapper.selectList(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()

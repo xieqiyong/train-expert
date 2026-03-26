@@ -1,5 +1,6 @@
 package com.databuff.digitalexpert.api;
 
+import com.databuff.digitalexpert.dao.dto.ChangeExpertStatusRequest;
 import com.alibaba.fastjson2.JSON;
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
@@ -10,6 +11,7 @@ import com.databuff.digitalexpert.dao.dto.ExpertConfigResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertIdRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertTaskListQueryRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTaskRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
@@ -64,7 +66,7 @@ public class DigitalExpertController {
 
     @PostMapping("/list")
     public ApiResponse<List<ExpertSummaryResponse>> listExperts(@Valid @RequestBody ExpertBatchQueryRequest request) {
-        return ApiResponse.success(digitalExpertService.listExpertsByNames(request.names()));
+        return ApiResponse.success(digitalExpertService.listExpertsByNames(request.names(), request.expertType()));
     }
 
     @PostMapping(value = "/manual/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -105,6 +107,11 @@ public class DigitalExpertController {
         return ApiResponse.success(expertReleaseService.getTask(request.expertId(), request.taskId()));
     }
 
+    @PostMapping("/release-tasks/list")
+    public ApiResponse<List<ExpertReleaseTaskResponse>> listReleaseTasks(@RequestBody(required = false) ExpertTaskListQueryRequest request) {
+        return ApiResponse.success(expertReleaseService.listTasks(request == null ? null : request.expertId()));
+    }
+
     @PostMapping("/training-tasks/submit")
     public ApiResponse<ExpertTrainingTaskResponse> submitTrainingTask(@Valid @RequestBody SubmitExpertTrainingTaskRequest request) {
         return ApiResponse.success(
@@ -115,6 +122,11 @@ public class DigitalExpertController {
     @PostMapping("/training-tasks/detail")
     public ApiResponse<ExpertTrainingTaskResponse> getTrainingTask(@Valid @RequestBody ExpertTaskRequest request) {
         return ApiResponse.success(expertTrainingService.getTask(request.expertId(), request.taskId()));
+    }
+
+    @PostMapping("/training-tasks/list")
+    public ApiResponse<List<ExpertTrainingTaskResponse>> listTrainingTasks(@RequestBody(required = false) ExpertTaskListQueryRequest request) {
+        return ApiResponse.success(expertTrainingService.listTasks(request == null ? null : request.expertId()));
     }
 
     @PostMapping("/config/detail")
@@ -156,9 +168,9 @@ public class DigitalExpertController {
         }
     }
 
-    @PostMapping("/disable")
-    public ApiResponse<ExpertSummaryResponse> disable(@Valid @RequestBody ExpertIdRequest request) {
-        return ApiResponse.success(digitalExpertService.disableExpert(request.expertId()));
+    @PostMapping("/status/change")
+    public ApiResponse<ExpertSummaryResponse> changeStatus(@Valid @RequestBody ChangeExpertStatusRequest request) {
+        return ApiResponse.success(digitalExpertService.changeExpertStatus(request.expertId(), request.operation()));
     }
 
     private List<McpBindingRequest> parseMcpsJson(String mcpsJson) {

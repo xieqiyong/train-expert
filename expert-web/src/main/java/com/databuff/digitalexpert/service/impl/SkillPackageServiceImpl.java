@@ -13,6 +13,7 @@ import com.databuff.digitalexpert.service.storage.ZipArchiveService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,14 @@ public class SkillPackageServiceImpl implements SkillPackageService {
     @Override
     public SkillPackageResponse getById(Long id) {
         return toResponse(requireById(id));
+    }
+
+    @Override
+    public List<SkillPackageResponse> listPackages() {
+        return skillPackageMapper.selectList(null).stream()
+                .sorted((left, right) -> Long.compare(right.getId(), left.getId()))
+                .map(this::toResponse)
+                .toList();
     }
 
     @Override

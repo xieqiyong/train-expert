@@ -5,6 +5,7 @@ import com.databuff.digitalexpert.dao.dto.StaticPackageResponse;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.databuff.digitalexpert.service.StaticPackageService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
@@ -34,5 +35,10 @@ public class StaticPackageController {
     @PostMapping("/detail")
     public ApiResponse<StaticPackageResponse> getById(@Valid @RequestBody IdRequest request) {
         return ApiResponse.success(staticPackageService.getById(request.id()));
+    }
+
+    @PostMapping("/list")
+    public ApiResponse<List<StaticPackageResponse>> listPackages() {
+        return ApiResponse.success(staticPackageService.listPackages());
     }
 }
