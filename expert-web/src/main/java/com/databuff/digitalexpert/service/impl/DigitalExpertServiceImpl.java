@@ -232,12 +232,12 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家状态操作不能为空");
         }
         return switch (operation) {
-            case ENABLE -> enableExpertInternal(expertId);
-            case DISABLE -> disableExpertInternal(expertId);
+            case ENABLE -> disableExpertInternal(expertId, ExpertStatus.STARTED);
+            case DISABLE -> disableExpertInternal(expertId, ExpertStatus.DISABLED);
         };
     }
 
-    private ExpertSummaryResponse disableExpertInternal(Long expertId) {
+    private ExpertSummaryResponse disableExpertInternal(Long expertId, ExpertStatus expertStatus) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
@@ -252,35 +252,11 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             );
         }
         LocalDateTime now = LocalDateTime.now();
-        expert.setStatus(ExpertStatus.DISABLED.name());
+        expert.setStatus(expertStatus.name());
+        if(expertStatus.equals(ExpertStatus.DISABLED)){
+            expert.setUpdatedAt(now);
+        }
         expert.setDisabledAt(now);
-        expert.setUpdatedAt(now);
-        digitalExpertMapper.updateById(expert);
-        return toSummary(expert);
-    }
-
-    private ExpertSummaryResponse enableExpertInternal(Long expertId) {
-        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
-        if (hasActiveReleaseTask(expertId)) {
-            throw BusinessException.conflict(
-                    ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
-                    "专家存在进行中的发布任务: " + expertId
-            );
-        }
-        if (hasActiveTrainingTask(expertId)) {
-            throw BusinessException.conflict(
-                    ErrorCode.ACTIVE_TRAINING_TASK_EXISTS,
-                    "专家存在进行中的训练任务: " + expertId
-            );
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (expert.getReleaseVersion() != null && expert.getReleaseVersion() > 0) {
-            expert.setStatus(ExpertStatus.STARTED.name());
-        } else {
-            expert.setStatus(ExpertStatus.DRAFT.name());
-        }
-        expert.setDisabledAt(null);
-        expert.setUpdatedAt(now);
         digitalExpertMapper.updateById(expert);
         return toSummary(expert);
     }
