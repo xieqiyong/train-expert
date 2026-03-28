@@ -21,5 +21,7 @@ public interface DigitalExpertService {
 
     ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request);
 
+    void deleteExpert(Long expertId);
+
     ExpertSummaryResponse changeExpertStatus(Long expertId, ExpertStatusOperation operation);
 }

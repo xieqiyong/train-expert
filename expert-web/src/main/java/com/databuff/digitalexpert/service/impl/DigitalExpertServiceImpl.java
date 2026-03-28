@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.databuff.digitalexpert.common.BusinessException;
+import com.databuff.digitalexpert.config.ExpertProperties;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -36,9 +37,14 @@ import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.SkillPackageService;
 import com.databuff.digitalexpert.service.StaticPackageService;
+import com.databuff.digitalexpert.service.storage.SharedStorageService;
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -46,11 +52,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 public class DigitalExpertServiceImpl implements DigitalExpertService {
 
@@ -74,6 +84,10 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     private ExpertConfigService expertConfigService;
     @Autowired
     private ExpertReleaseService expertReleaseService;
+    @Autowired
+    private SharedStorageService sharedStorageService;
+    @Autowired
+    private ExpertProperties properties;
 
     @Override
     @Transactional
@@ -227,6 +241,27 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
+    public void deleteExpert(Long expertId) {
+        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        ensureNoActiveTasks(expertId);
+
+        expertSkillBindingMapper.delete(new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                .eq(ExpertSkillBindingEntity::getExpertId, expertId));
+        expertStaticPackageBindingMapper.delete(new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                .eq(ExpertStaticPackageBindingEntity::getExpertId, expertId));
+        expertMcpBindingMapper.delete(new LambdaQueryWrapper<ExpertMcpBindingEntity>()
+                .eq(ExpertMcpBindingEntity::getExpertId, expertId));
+        expertReleaseTaskMapper.delete(new LambdaQueryWrapper<ExpertReleaseTaskEntity>()
+                .eq(ExpertReleaseTaskEntity::getExpertId, expertId));
+        expertTrainingTaskMapper.delete(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                .eq(ExpertTrainingTaskEntity::getExpertId, expertId));
+        digitalExpertMapper.deleteById(expert.getId());
+
+        deleteExpertArtifactsAfterCommit(expertId);
+    }
+
+    @Override
+    @Transactional
     public ExpertSummaryResponse changeExpertStatus(Long expertId, ExpertStatusOperation operation) {
         if (operation == null) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家状态操作不能为空");
@@ -239,6 +274,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     private ExpertSummaryResponse disableExpertInternal(Long expertId, ExpertStatus expertStatus) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        ensureNoActiveTasks(expertId);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
@@ -273,6 +309,72 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 .eq(ExpertTrainingTaskEntity::getExpertId, expertId)
                 .in(ExpertTrainingTaskEntity::getStatus, TrainingTaskStatus.activeTaskStatuses()));
         return count != null && count > 0;
+    }
+
+    private void ensureNoActiveTasks(Long expertId) {
+        if (hasActiveReleaseTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
+                    "专家存在进行中的发布任务: " + expertId
+            );
+        }
+        if (hasActiveTrainingTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_TRAINING_TASK_EXISTS,
+                    "专家存在进行中的训练任务: " + expertId
+            );
+        }
+    }
+
+    private void deleteExpertArtifactsAfterCommit(Long expertId) {
+        Runnable cleanupAction = () -> {
+            sharedStorageService.deleteRecursively(sharedStorageService.resolveExpertRoot(expertId));
+            deleteTrainingOutputRoot(expertId);
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            cleanupAction.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    cleanupAction.run();
+                } catch (Exception ex) {
+                    log.error("Delete expert artifacts failed, expertId={}", expertId, ex);
+                }
+            }
+        });
+    }
+
+    private void deleteTrainingOutputRoot(Long expertId) {
+        String configuredRoot = properties.getTraining().getOutputRoot();
+        if (configuredRoot == null || configuredRoot.isBlank()) {
+            return;
+        }
+        Path trainingOutputRoot = Path.of(configuredRoot).toAbsolutePath().normalize();
+        Path expertTrainingRoot = trainingOutputRoot.resolve(String.valueOf(expertId)).normalize();
+        if (!expertTrainingRoot.startsWith(trainingOutputRoot)) {
+            throw new IllegalStateException("expert training root is outside configured output root: " + expertTrainingRoot);
+        }
+        deleteDirectoryRecursively(expertTrainingRoot);
+    }
+
+    private void deleteDirectoryRecursively(Path directory) {
+        if (directory == null || !Files.exists(directory)) {
+            return;
+        }
+        try (var stream = Files.walk(directory)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ex) {
+                    throw new IllegalStateException("delete path failed: " + path, ex);
+                }
+            });
+        } catch (IOException ex) {
+            throw new IllegalStateException("delete path failed: " + directory, ex);
+        }
     }
 
     private void ensureExpertNameUnique(String name) {

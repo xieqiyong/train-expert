@@ -100,6 +100,12 @@ public class DigitalExpertController {
         return ApiResponse.success(digitalExpertService.updateBindings(request.expertId(), request.toBindingsRequest()));
     }
 
+    @PostMapping("/delete")
+    public ApiResponse<Void> deleteExpert(@Valid @RequestBody ExpertIdRequest request) {
+        digitalExpertService.deleteExpert(request.expertId());
+        return ApiResponse.success();
+    }
+
     @PostMapping("/release-tasks/submit")
     public ApiResponse<ExpertReleaseTaskResponse> submitReleaseTask(@Valid @RequestBody ExpertIdRequest request) {
         return ApiResponse.success(expertReleaseService.submitReleaseTask(request.expertId()));

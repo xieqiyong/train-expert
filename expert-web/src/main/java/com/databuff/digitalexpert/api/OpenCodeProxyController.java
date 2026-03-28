@@ -1,7 +1,10 @@
 package com.databuff.digitalexpert.api;
 
+import com.databuff.digitalexpert.common.BusinessException;
+import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.xie.opencode.core.OpenCodeChatService;
+import com.xie.opencode.core.SessionManager;
 import com.xie.opencode.core.chat.ChatAuthCommand;
 import com.xie.opencode.core.chat.ChatAuthRemovalView;
 import com.xie.opencode.core.chat.ChatAuthView;
@@ -22,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,10 +46,22 @@ public class OpenCodeProxyController {
     @Autowired
     private OpenCodeChatService openCodeChatService;
 
+    @Autowired
+    private SessionManager sessionManager;
+
     @PostMapping("/bootstrap")
     public ApiResponse<ChatBootstrapView> bootstrap() {
         ChatBootstrapView  result = this.openCodeChatService.bootstrap();
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 当前会话是否结束
+     * @param conversationId
+     */
+    @GetMapping("/conversations/finished")
+    public ApiResponse<Boolean> isConversationFinished(@RequestParam String conversationId) {
+        return ApiResponse.success(sessionManager.isSessionFinished(conversationId));
     }
 
     @PostMapping("/conversations/list")
