@@ -60,6 +60,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 @Slf4j
@@ -136,10 +138,23 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
         expertTrainingTaskMapper.insert(task);
-        trainingSubmitExecutor.execute(() -> submitTaskToProxy(taskId, request.trainingGoal()));
+        submitTaskToProxyAfterCommit(taskId, request.trainingGoal());
         return toResponse(task);
     }
 
+    private void submitTaskToProxyAfterCommit(String taskId, String trainingGoal) {
+        Runnable submitAction = () -> trainingSubmitExecutor.execute(() -> submitTaskToProxy(taskId, trainingGoal));
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            submitAction.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                submitAction.run();
+            }
+        });
+    }
     @Override
     public ExpertTrainingTaskResponse getTask(Long expertId, String taskId) {
         ExpertTrainingTaskEntity task = expertTrainingTaskMapper.selectOne(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
@@ -214,13 +229,13 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             );
 
             task = requireTask(taskId);
-            task.setSessionId(taskId);
+            task.setSessionId(submitResult.sessionId());
             task.setSubmitRequestId(submitResult.requestId());
             task.setUpdatedAt(LocalDateTime.now());
             expertTrainingTaskMapper.updateById(task);
 
             DigitalExpertEntity expert1 = expertConfigService.requireExpert(task.getExpertId());
-            expert1.setLastTrainingSessionId(taskId);
+            expert1.setLastTrainingSessionId(submitResult.sessionId());
             expert1.setUpdatedAt(LocalDateTime.now());
             digitalExpertMapper.updateById(expert1);
         } catch (Exception ex) {

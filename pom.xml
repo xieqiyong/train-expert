@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -27,7 +27,6 @@
         <lombok.version>1.18.28</lombok.version>
         <aspectjweaver.version>1.9.25.1</aspectjweaver.version>
         <fastjson2.version>2.0.61</fastjson2.version>
-        <hutool.version>5.8.25</hutool.version>
         <commons-compress.version>1.28.0</commons-compress.version>
     </properties>
     <dependencies>
@@ -72,11 +71,6 @@
                 <groupId>com.alibaba.fastjson2</groupId>
                 <artifactId>fastjson2</artifactId>
                 <version>${fastjson2.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>cn.hutool</groupId>
-                <artifactId>hutool-http</artifactId>
-                <version>${hutool.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.aspectj</groupId>
