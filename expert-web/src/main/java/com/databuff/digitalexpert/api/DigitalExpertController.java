@@ -3,6 +3,7 @@ package com.databuff.digitalexpert.api;
 import com.databuff.digitalexpert.dao.dto.ChangeExpertStatusRequest;
 import com.alibaba.fastjson2.JSON;
 import com.databuff.digitalexpert.common.BusinessException;
+import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -67,6 +68,11 @@ public class DigitalExpertController {
     @PostMapping("/list")
     public ApiResponse<List<ExpertSummaryResponse>> listExperts(@Valid @RequestBody ExpertBatchQueryRequest request) {
         return ApiResponse.success(digitalExpertService.listExpertsByNames(request.names(), request.expertType()));
+    }
+
+    @PostMapping("/agent-bindings/list")
+    public ApiResponse<List<AgentBindingGroupResponse>> listAgentBindings() {
+        return ApiResponse.success(digitalExpertService.listAgentBindings());
     }
 
     @PostMapping(value = "/manual/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

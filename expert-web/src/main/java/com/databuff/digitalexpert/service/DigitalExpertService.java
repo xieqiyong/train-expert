@@ -1,5 +1,6 @@
 package com.databuff.digitalexpert.service;
 
+import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -16,6 +17,8 @@ public interface DigitalExpertService {
     ExpertSummaryResponse createExpert(CreateExpertRequest request);
 
     List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType);
+
+    List<AgentBindingGroupResponse> listAgentBindings();
 
     ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles);
 

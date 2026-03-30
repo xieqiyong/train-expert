@@ -1,5 +1,6 @@
 package com.databuff.digitalexpert.config;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.nio.file.Paths;
@@ -159,7 +160,18 @@ public class ExpertProperties {
         /**
          * 训练成功后，技能包解压输出目录列表。
          */
-        private List<String> skillsOutput = new ArrayList<>();
+        @Valid
+        private List<SkillOutput> skillsOutput = new ArrayList<>();
+    }
+    @Getter
+    @Setter
+    public static class SkillOutput {
+
+        @NotBlank
+        private String name;
+
+        @NotBlank
+        private String path;
     }
     @Getter
     @Setter

@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS `expert_mcp_binding` (
   KEY `idx_expert_mcp_binding_expert_id` (`expert_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家MCP绑定';
 
+-- expert_databuff.expert_agent_binding 表定义
+
+CREATE TABLE IF NOT EXISTS `expert_agent_binding` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `expert_id` bigint NOT NULL COMMENT '专家ID',
+  `expert_name` varchar(128) NOT NULL COMMENT '专家名称',
+  `agent_name` varchar(128) NOT NULL COMMENT 'AI agent名称',
+  `agent_path` varchar(512) NOT NULL COMMENT 'AI agent skills输出路径',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_expert_agent_binding` (`expert_id`,`agent_name`),
+  KEY `idx_expert_agent_binding_agent_name` (`agent_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家与AI agent绑定';
+
 -- expert_databuff.expert_release_task 表定义
 
 CREATE TABLE IF NOT EXISTS `expert_release_task` (

@@ -4,6 +4,8 @@ import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.databuff.digitalexpert.common.BusinessException;
+import com.databuff.digitalexpert.dao.dto.AgentBindingExpertResponse;
+import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -14,6 +16,7 @@ import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.SkillPackageResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
+import com.databuff.digitalexpert.dao.entity.ExpertAgentBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertReleaseTaskEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertSkillBindingEntity;
@@ -26,6 +29,7 @@ import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
+import com.databuff.digitalexpert.dao.mapper.ExpertAgentBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertMcpBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertReleaseTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
@@ -60,6 +64,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     private ExpertSkillBindingMapper expertSkillBindingMapper;
     @Autowired
     private ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
+    @Autowired
+    private ExpertAgentBindingMapper expertAgentBindingMapper;
     @Autowired
     private ExpertMcpBindingMapper expertMcpBindingMapper;
     @Autowired
@@ -129,6 +135,48 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             }
         }
         return result;
+    }
+
+    @Override
+    public List<AgentBindingGroupResponse> listAgentBindings() {
+        List<ExpertAgentBindingEntity> bindings = expertAgentBindingMapper.selectList(
+                new LambdaQueryWrapper<ExpertAgentBindingEntity>()
+                        .orderByAsc(ExpertAgentBindingEntity::getAgentName,
+                                ExpertAgentBindingEntity::getAgentPath,
+                                ExpertAgentBindingEntity::getExpertId,
+                                ExpertAgentBindingEntity::getId)
+        );
+        if (bindings == null || bindings.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, AgentBindingAccumulator> groupMap = new LinkedHashMap<>();
+        for (ExpertAgentBindingEntity binding : bindings) {
+            if (binding == null) {
+                continue;
+            }
+            String agentName = normalizeOptionalText(binding.getAgentName());
+            String agentPath = normalizeOptionalText(binding.getAgentPath());
+            if (agentName == null) {
+                continue;
+            }
+            AgentBindingAccumulator accumulator = groupMap.computeIfAbsent(
+                    agentName,
+                    key -> new AgentBindingAccumulator(agentName, agentPath)
+            );
+            accumulator.experts().add(new AgentBindingExpertResponse(
+                    binding.getExpertId(),
+                    binding.getExpertName()
+            ));
+        }
+
+        return groupMap.values().stream()
+                .map(accumulator -> new AgentBindingGroupResponse(
+                        accumulator.agentName(),
+                        accumulator.agentPath(),
+                        List.copyOf(accumulator.experts())
+                ))
+                .toList();
     }
 
     @Override
@@ -433,5 +481,16 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 .filter(Objects::nonNull)
                 .filter(file -> !file.isEmpty())
                 .toList();
+    }
+
+    private record AgentBindingAccumulator(
+            String agentName,
+            String agentPath,
+            List<AgentBindingExpertResponse> experts
+    ) {
+
+        private AgentBindingAccumulator(String agentName, String agentPath) {
+            this(agentName, agentPath, new ArrayList<>());
+        }
     }
 }

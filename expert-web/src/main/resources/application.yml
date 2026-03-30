@@ -59,4 +59,5 @@ digital-expert:
   static-package: /app/upload/static
   agent:
     skills-output:
-      - /app/agent/agent-business/skills/
+      - name: agent-business
+        path: /app/agent/agent-business/skills/

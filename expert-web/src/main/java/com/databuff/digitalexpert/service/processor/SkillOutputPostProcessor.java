@@ -1,11 +1,15 @@
 package com.databuff.digitalexpert.service.processor;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.config.ExpertProperties;
 import com.databuff.digitalexpert.dao.bo.TrainingContext;
+import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
+import com.databuff.digitalexpert.dao.entity.ExpertAgentBindingEntity;
 import com.databuff.digitalexpert.dao.entity.SkillPackageEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
+import com.databuff.digitalexpert.dao.mapper.ExpertAgentBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
 import com.databuff.digitalexpert.service.TrainingPostProcessor;
 import com.databuff.digitalexpert.service.storage.ZipArchiveService;
@@ -13,14 +17,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Slf4j
@@ -30,6 +37,8 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
 
     @Autowired
     private SkillPackageMapper skillPackageMapper;
+    @Autowired
+    private ExpertAgentBindingMapper expertAgentBindingMapper;
     @Autowired
     private ExpertProperties properties;
     @Autowired
@@ -45,9 +54,11 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void postProcess(TrainingContext context) {
-        List<String> outputRoots = resolveOutputRoots();
-        if (outputRoots.isEmpty()) {
+        List<OutputTarget> outputTargets = resolveOutputTargets();
+        if (outputTargets.isEmpty()) {
+            clearExpertAgentBindings(context);
             log.info("未配置 skills-output 输出目录，跳过技能包解压后置处理, taskId={}",
                     context.trainingTask() == null ? null : context.trainingTask().getTaskId());
             return;
@@ -64,11 +75,14 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
                 failures.add("技能包路径为空: " + skillId);
                 continue;
             }
-            for (String outputRoot : outputRoots) {
+            for (OutputTarget outputTarget : outputTargets) {
                 try {
-                    extractSkillPackage(context, skillPackage, outputRoot);
+                    extractSkillPackage(context, skillPackage, outputTarget);
                 } catch (Exception ex) {
-                    failures.add("skillId=" + skillId + ", outputRoot=" + outputRoot + ", reason=" + ex.getMessage());
+                    failures.add("skillId=" + skillId
+                            + ", agentName=" + outputTarget.agentName()
+                            + ", outputRoot=" + outputTarget.outputRoot()
+                            + ", reason=" + ex.getMessage());
                 }
             }
         }
@@ -77,21 +91,35 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
             throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
                     "技能包解压到 skills-output 目录失败: " + String.join(" | ", failures));
         }
+        refreshExpertAgentBindings(context, outputTargets);
     }
 
-    private List<String> resolveOutputRoots() {
+    private List<OutputTarget> resolveOutputTargets() {
         if (properties.getAgent() == null || properties.getAgent().getSkillsOutput() == null) {
             return List.of();
         }
-        return properties.getAgent().getSkillsOutput().stream()
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .distinct()
-                .toList();
+        LinkedHashMap<String, OutputTarget> outputTargetMap = new LinkedHashMap<>();
+        for (ExpertProperties.SkillOutput configuredTarget : properties.getAgent().getSkillsOutput()) {
+            if (configuredTarget == null) {
+                continue;
+            }
+            String agentName = normalizeText(configuredTarget.getName());
+            String outputPath = normalizeText(configuredTarget.getPath());
+            if (!StringUtils.hasText(agentName) || !StringUtils.hasText(outputPath)) {
+                continue;
+            }
+            OutputTarget target = new OutputTarget(agentName, outputPath);
+            OutputTarget previousTarget = outputTargetMap.putIfAbsent(agentName, target);
+            if (previousTarget != null && !previousTarget.outputRoot().equals(outputPath)) {
+                throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                        "skills-output 存在重复 agent 名称且路径不一致: " + agentName);
+            }
+        }
+        return List.copyOf(outputTargetMap.values());
     }
 
-    private void extractSkillPackage(TrainingContext context, SkillPackageEntity skillPackage, String outputRoot) {
-        Path rootDirectory = Path.of(outputRoot).toAbsolutePath().normalize();
+    private void extractSkillPackage(TrainingContext context, SkillPackageEntity skillPackage, OutputTarget outputTarget) {
+        Path rootDirectory = Path.of(outputTarget.outputRoot()).toAbsolutePath().normalize();
         String outputDirectoryName = resolveOutputDirectoryName(skillPackage);
         Path tempDirectory = rootDirectory.resolve(".tmp")
                 .resolve(context.trainingTask().getTaskId())
@@ -118,6 +146,39 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
         } finally {
             deleteDirectory(tempDirectory);
         }
+    }
+
+    private void refreshExpertAgentBindings(TrainingContext context, List<OutputTarget> outputTargets) {
+        DigitalExpertEntity expert = requireExpert(context);
+        expertAgentBindingMapper.delete(new LambdaQueryWrapper<ExpertAgentBindingEntity>()
+                .eq(ExpertAgentBindingEntity::getExpertId, expert.getId()));
+
+        LocalDateTime now = LocalDateTime.now();
+        for (OutputTarget outputTarget : outputTargets) {
+            ExpertAgentBindingEntity entity = new ExpertAgentBindingEntity();
+            entity.setExpertId(expert.getId());
+            entity.setExpertName(expert.getName());
+            entity.setAgentName(outputTarget.agentName());
+            entity.setAgentPath(Path.of(outputTarget.outputRoot()).toAbsolutePath().normalize().toString());
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            expertAgentBindingMapper.insert(entity);
+        }
+    }
+
+    private void clearExpertAgentBindings(TrainingContext context) {
+        if (context == null || context.expert() == null || context.expert().getId() == null) {
+            return;
+        }
+        expertAgentBindingMapper.delete(new LambdaQueryWrapper<ExpertAgentBindingEntity>()
+                .eq(ExpertAgentBindingEntity::getExpertId, context.expert().getId()));
+    }
+
+    private DigitalExpertEntity requireExpert(TrainingContext context) {
+        if (context == null || context.expert() == null || context.expert().getId() == null) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "training post process missing expert context");
+        }
+        return context.expert();
     }
 
     private String resolveOutputDirectoryName(SkillPackageEntity skillPackage) {
@@ -192,5 +253,18 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
         if (!targetPath.startsWith(rootDirectory)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "技能输出路径超出根目录范围: " + targetPath);
         }
+    }
+
+    private String normalizeText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private record OutputTarget(
+            String agentName,
+            String outputRoot
+    ) {
     }
 }

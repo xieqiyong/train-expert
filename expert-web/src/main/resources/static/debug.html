@@ -215,6 +215,15 @@
     <section class="hero">
         <h1>数字员工调试台</h1>
         <p>这个页面只做联调，不做权限、不做路由。默认调用当前服务同源接口。你可以直接创建专家、提交训练、查询训练任务、查配置、手动发布和下载产物。</p>
+        <div class="card">
+            <div class="card-body">
+                <h3>5. Agent Bindings</h3>
+                <p class="subtle">Call the new backend API and inspect all agent names with their bound digital experts.</p>
+                <div class="button-row">
+                    <button type="button" class="alt" id="query-agent-bindings">Query Agent Bindings</button>
+                </div>
+            </div>
+        </div>
     </section>
 
     <section class="toolbar">
@@ -629,6 +638,18 @@ GIT_URL|https://example.com/repo.git</textarea>
             appendLog("查询当前配置成功", data);
         } catch (error) {
             appendLog("查询当前配置失败", error.message);
+        }
+    });
+
+    document.getElementById("query-agent-bindings").addEventListener("click", async () => {
+        try {
+            const data = await apiRequest("/api/v1/experts/agent-bindings/list", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            appendLog("Query Agent Bindings Success", data);
+        } catch (error) {
+            appendLog("Query Agent Bindings Failed", error.message);
         }
     });
 
