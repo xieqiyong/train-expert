@@ -56,7 +56,7 @@ digital-expert:
   static-package: /app/upload/static
   agent:
     skills-output:
-      - /app/agent/agent-business/skills/
+      - /root/.opencode/skills/
 
 opencode:
   enabled: true

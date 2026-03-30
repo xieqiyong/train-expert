@@ -44,6 +44,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -91,8 +93,22 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         expertReleaseTaskMapper.insert(entity);
-        releaseTaskExecutor.execute(() -> runTask(entity.getTaskId()));
+        submitTaskAfterCommit(entity.getTaskId());
         return toResponse(entity);
+    }
+
+    private void submitTaskAfterCommit(String taskId) {
+        Runnable submitAction = () -> releaseTaskExecutor.execute(() -> runTask(taskId));
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            submitAction.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                submitAction.run();
+            }
+        });
     }
 
     @Override

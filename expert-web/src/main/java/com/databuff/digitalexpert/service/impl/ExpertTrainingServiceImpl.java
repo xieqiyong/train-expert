@@ -543,7 +543,6 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
         builder.append("技能根目录: ").append(skillRootDirectory).append("\n");
         builder.append("技能文件: ").append(skillRootDirectory.resolve("SKILL.md")).append("\n");
-        builder.append("版本索引文件: ").append(skillRootDirectory.resolve("版本索引.md")).append("\n");
         builder.append("版本目录: ").append(versionDirectory).append("\n");
         builder.append("静态资源目录: ").append(versionDirectory.resolve("static_package")).append("\n");
         if (specSkillPath != null) {
@@ -552,8 +551,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         builder.append("要求:\n")
                 .append("1. 使用 root-skills-creator，按规范生成 1 个 skill。\n")
                 .append("2. 根目录名必须是 ").append(skillDirName).append("，每次训练都要改写或追加技能根目录下的 SKILL.md。\n")
-                .append("3. 必须在技能根目录生成或更新 版本索引.md，并在根 SKILL.md 最下方追加本次版本信息。\n")
-                .append("4. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n");
+                .append("3. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n");
         appendStaticPackagePrompt(builder, sources, versionDirectory);
         return builder.toString();
     }
@@ -605,11 +603,6 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "技能根目录缺少 SKILL.md: " + skillRootDirectory);
         }
-        Path versionIndexPath = skillRootDirectory.resolve("版本索引.md");
-        if (!Files.isRegularFile(versionIndexPath)) {
-            throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
-                    "技能根目录缺少 版本索引.md: " + skillRootDirectory);
-        }
         if (!Files.exists(versionDirectory) || !Files.isDirectory(versionDirectory)) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "版本目录不存在: " + versionDirectory);
@@ -648,7 +641,6 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         return message.contains("训练输出目录不存在")
                 || message.contains("技能根目录不存在")
                 || message.contains("缺少 SKILL.md")
-                || message.contains("缺少 版本索引.md")
                 || message.contains("版本目录不存在")
                 || message.contains("缺少 static_package")
                 || message.contains("无法从版本目录解析技能根目录");
@@ -1216,23 +1208,23 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                                            List<TrainingSourceRequest> sources,
                                            Path versionDirectory) {
         if (findAppInfoSource(sources) != null) {
-            builder.append("5. 静态代码需要先使用 CFR 反编译，固定使用工具路径 /opt/cfr/cfr.jar，得到可阅读的 Java 源码。\n")
-                    .append("6. 将反编译后的有效文件整理到 ")
+            builder.append("4. 静态代码需要先使用 CFR 反编译，固定使用工具路径 /opt/cfr/cfr.jar，得到可阅读的 Java 源码。\n")
+                    .append("5. 将反编译后的有效文件整理到 ")
                     .append(versionDirectory.resolve("static_package"))
                     .append("，不要保留未处理的 jar。\n");
             return;
         }
         if (hasSourceType(sources, TrainingSourceType.GIT_URL)) {
-            builder.append("5. 需要基于指定分支的 Git 仓库生成 skill，并将该版本相关的关键文档、目录结构和必要源码快照整理到 ")
+            builder.append("4. 需要基于指定分支的 Git 仓库生成 skill，必须阅读源码，形成自己的理解，并将该版本源码快照整理到 ")
                     .append(versionDirectory.resolve("static_package"))
                     .append("。\n")
-                    .append("6. 不要保留 .git、缓存目录或无关大文件。\n");
+                    .append("如果无法拿到源码，请直接退出。\n");
             return;
         }
-        builder.append("5. 需要将文档压缩包中的有效文档、目录结构和必要示例整理到 ")
+        builder.append("4. 需要将文档压缩包中的有效文档、目录结构和必要示例整理到 ")
                 .append(versionDirectory.resolve("static_package"))
                 .append("，保留可阅读的文本内容。\n")
-                .append("6. 不要生成无关压缩包或不可读的二进制快照。\n");
+                .append("5. 不要生成无关压缩包或不可读的二进制快照。\n");
     }
     private boolean hasSourceType(List<TrainingSourceRequest> sources, TrainingSourceType sourceType) {
         if (sources == null || sources.isEmpty() || sourceType == null) {

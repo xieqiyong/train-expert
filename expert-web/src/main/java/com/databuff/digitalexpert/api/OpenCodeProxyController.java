@@ -1,7 +1,5 @@
 package com.databuff.digitalexpert.api;
 
-import com.databuff.digitalexpert.common.BusinessException;
-import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.xie.opencode.core.OpenCodeChatService;
 import com.xie.opencode.core.SessionManager;
@@ -56,11 +54,11 @@ public class OpenCodeProxyController {
     }
 
     /**
-     * 当前会话是否结束
+     * 获取会话是否结束
      * @param conversationId
      */
     @GetMapping("/conversations/finished")
-    public ApiResponse<Boolean> isConversationFinished(@RequestParam String conversationId) {
+    public ApiResponse<Boolean> isConversationFinished(@RequestParam("conversationId") String conversationId) {
         return ApiResponse.success(sessionManager.isSessionFinished(conversationId));
     }
 
@@ -199,3 +197,4 @@ public class OpenCodeProxyController {
         return command.getProviderId().trim();
     }
 }
+
