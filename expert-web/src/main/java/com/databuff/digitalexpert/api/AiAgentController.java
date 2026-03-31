@@ -7,6 +7,7 @@ import com.databuff.digitalexpert.dao.dto.AgentIdRequest;
 import com.databuff.digitalexpert.dao.dto.AgentSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ChangeAgentStatusRequest;
 import com.databuff.digitalexpert.dao.dto.CreateAgentRequest;
+import com.databuff.digitalexpert.dao.dto.PlatformServiceResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateAgentBindingsCommand;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.databuff.digitalexpert.service.AiAgentService;
@@ -44,6 +45,11 @@ public class AiAgentController {
     @PostMapping("/detail")
     public ApiResponse<AgentConfigResponse> getConfig(@Valid @RequestBody AgentIdRequest request) {
         return ApiResponse.success(aiAgentService.getConfig(request.agentId()));
+    }
+
+    @PostMapping("/services/list")
+    public ApiResponse<List<PlatformServiceResponse>> listPlatformServices() {
+        return ApiResponse.success(aiAgentService.listPlatformServices());
     }
 
     @PostMapping("/bindings/update")

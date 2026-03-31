@@ -4,6 +4,7 @@ import com.databuff.digitalexpert.dao.dto.AgentBindingUpdateResponse;
 import com.databuff.digitalexpert.dao.dto.AgentConfigResponse;
 import com.databuff.digitalexpert.dao.dto.AgentSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.CreateAgentRequest;
+import com.databuff.digitalexpert.dao.dto.PlatformServiceResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateAgentBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
 import com.databuff.digitalexpert.dao.enums.AgentStatus;
@@ -19,6 +20,8 @@ public interface AiAgentService {
     AgentConfigResponse getConfig(Long agentId);
 
     AgentBindingUpdateResponse updateBindings(Long agentId, UpdateAgentBindingsRequest request);
+
+    List<PlatformServiceResponse> listPlatformServices();
 
     List<AgentSummaryResponse> changeStatus(List<Long> agentIds, AgentStatusOperation operation);
 

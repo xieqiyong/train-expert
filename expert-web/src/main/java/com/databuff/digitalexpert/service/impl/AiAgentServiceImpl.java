@@ -9,6 +9,7 @@ import com.databuff.digitalexpert.dao.dto.AgentExpertBindingResponse;
 import com.databuff.digitalexpert.dao.dto.AgentSkillBindingResponse;
 import com.databuff.digitalexpert.dao.dto.AgentSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.CreateAgentRequest;
+import com.databuff.digitalexpert.dao.dto.PlatformServiceResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateAgentBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AgentSkillBindingEntity;
@@ -168,6 +169,25 @@ public class AiAgentServiceImpl implements AiAgentService {
     }
 
     @Override
+    public List<PlatformServiceResponse> listPlatformServices() {
+        List<PlatformServiceResponse> responses = new ArrayList<>();
+
+        List<AiAgentEntity> agents = aiAgentMapper.selectList(new LambdaQueryWrapper<AiAgentEntity>()
+                .orderByDesc(AiAgentEntity::getId));
+        for (AiAgentEntity agent : agents) {
+            responses.add(toPlatformService(agent));
+        }
+
+        List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(new LambdaQueryWrapper<DigitalExpertEntity>()
+                .orderByDesc(DigitalExpertEntity::getId));
+        for (DigitalExpertEntity expert : experts) {
+            responses.add(toPlatformService(expert));
+        }
+
+        return responses;
+    }
+
+    @Override
     @Transactional
     public List<AgentSummaryResponse> changeStatus(List<Long> agentIds, AgentStatusOperation operation) {
         if (operation == null) {
@@ -285,6 +305,24 @@ public class AiAgentServiceImpl implements AiAgentService {
                 entity.getDescription(),
                 entity.getAgentPath(),
                 entity.getStatus()
+        );
+    }
+
+    private PlatformServiceResponse toPlatformService(AiAgentEntity entity) {
+        return new PlatformServiceResponse(
+                entity.getId(),
+                entity.getAgentName(),
+                entity.getDescription(),
+                "AGENT"
+        );
+    }
+
+    private PlatformServiceResponse toPlatformService(DigitalExpertEntity entity) {
+        return new PlatformServiceResponse(
+                entity.getId(),
+                entity.getName(),
+                entity.getDescription(),
+                "SERVICE"
         );
     }
 
