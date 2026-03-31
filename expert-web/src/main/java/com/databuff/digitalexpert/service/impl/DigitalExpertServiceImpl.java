@@ -150,9 +150,32 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             return List.of();
         }
 
+        Set<Long> bindingExpertIds = bindings.stream()
+                .map(ExpertAgentBindingEntity::getExpertId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (bindingExpertIds.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> startedExpertIds = digitalExpertMapper.selectList(
+                        new LambdaQueryWrapper<DigitalExpertEntity>()
+                                .in(DigitalExpertEntity::getId, bindingExpertIds)
+                                .eq(DigitalExpertEntity::getStatus, ExpertStatus.STARTED.name())
+                ).stream()
+                .map(DigitalExpertEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        if (startedExpertIds.isEmpty()) {
+            return List.of();
+        }
+
         Map<String, AgentBindingAccumulator> groupMap = new LinkedHashMap<>();
         for (ExpertAgentBindingEntity binding : bindings) {
             if (binding == null) {
+                continue;
+            }
+            if (binding.getExpertId() == null || !startedExpertIds.contains(binding.getExpertId())) {
                 continue;
             }
             String agentName = normalizeOptionalText(binding.getAgentName());
