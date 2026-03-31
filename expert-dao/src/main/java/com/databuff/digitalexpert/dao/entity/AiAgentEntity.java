@@ -1,24 +1,28 @@
 package com.databuff.digitalexpert.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("de_skill_package")
-public class SkillPackageEntity {
+@TableName("de_ai_agent")
+public class AiAgentEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
-    private String name;
+    @TableField("agent_name")
+    private String agentName;
     private String description;
-    private String packageName;
-    private String packagePath;
-    private String checksum;
+    @TableField("agent_path")
+    private String agentPath;
     private String status;
+    @TableField("auto_binding")
+    private Integer autoBinding;
+    private LocalDateTime activatedAt;
+    private LocalDateTime disabledAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

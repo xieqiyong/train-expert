@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("expert_skill_binding")
+@TableName("de_expert_skill_binding")
 public class ExpertSkillBindingEntity {
 
     @TableId(type = IdType.AUTO)

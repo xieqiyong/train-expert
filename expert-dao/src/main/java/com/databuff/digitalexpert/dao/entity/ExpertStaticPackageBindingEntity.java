@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("expert_static_package_binding")
+@TableName("de_expert_static_package_binding")
 public class ExpertStaticPackageBindingEntity {
 
     @TableId(type = IdType.AUTO)

@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("expert_training_task")
+@TableName("de_expert_training_task")
 public class ExpertTrainingTaskEntity {
 
     @TableId(type = IdType.AUTO)

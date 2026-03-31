@@ -39,11 +39,6 @@ public class ExpertProperties {
     private Proxy proxy = new Proxy();
 
     /**
-     * Agent 相关配置。
-     */
-    private Agent agent = new Agent();
-
-    /**
      * 跨域配置。
      */
     private Cors cors = new Cors();
@@ -153,26 +148,6 @@ public class ExpertProperties {
         private int timeoutMs = 15000;
     }
 
-    @Getter
-    @Setter
-    public static class Agent {
-
-        /**
-         * 训练成功后，技能包解压输出目录列表。
-         */
-        @Valid
-        private List<SkillOutput> skillsOutput = new ArrayList<>();
-    }
-    @Getter
-    @Setter
-    public static class SkillOutput {
-
-        @NotBlank
-        private String name;
-
-        @NotBlank
-        private String path;
-    }
     @Getter
     @Setter
     public static class Cors {

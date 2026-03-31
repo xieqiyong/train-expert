@@ -1,6 +1,5 @@
--- expert_databuff.digital_expert 表定义
-
-CREATE TABLE IF NOT EXISTS `digital_expert` (
+-- de_digital_expert 表定义
+CREATE TABLE IF NOT EXISTS `de_digital_expert` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) NOT NULL COMMENT '专家名称',
   `description` varchar(512) DEFAULT NULL COMMENT '专家描述',
@@ -21,11 +20,10 @@ CREATE TABLE IF NOT EXISTS `digital_expert` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_digital_expert_name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数字员工';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数字专家';
 
--- expert_databuff.expert_mcp_binding 表定义
-
-CREATE TABLE IF NOT EXISTS `expert_mcp_binding` (
+-- de_expert_mcp_binding 表定义
+CREATE TABLE IF NOT EXISTS `de_expert_mcp_binding` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
   `binding_name` varchar(128) NOT NULL COMMENT '绑定名称',
@@ -38,24 +36,22 @@ CREATE TABLE IF NOT EXISTS `expert_mcp_binding` (
   KEY `idx_expert_mcp_binding_expert_id` (`expert_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家MCP绑定';
 
--- expert_databuff.expert_agent_binding 表定义
-
-CREATE TABLE IF NOT EXISTS `expert_agent_binding` (
+-- de_expert_agent_binding 表定义
+CREATE TABLE IF NOT EXISTS `de_expert_agent_binding` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
   `expert_name` varchar(128) NOT NULL COMMENT '专家名称',
-  `agent_name` varchar(128) NOT NULL COMMENT 'AI agent名称',
-  `agent_path` varchar(512) NOT NULL COMMENT 'AI agent skills输出路径',
+  `agent_name` varchar(128) NOT NULL COMMENT 'AI Agent名称',
+  `agent_path` varchar(512) NOT NULL COMMENT 'AI Agent skills输出路径',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_expert_agent_binding` (`expert_id`,`agent_name`),
   KEY `idx_expert_agent_binding_agent_name` (`agent_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家与AI agent绑定';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家与AI Agent绑定';
 
--- expert_databuff.expert_release_task 表定义
-
-CREATE TABLE IF NOT EXISTS `expert_release_task` (
+-- de_expert_release_task 表定义
+CREATE TABLE IF NOT EXISTS `de_expert_release_task` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `task_id` varchar(64) NOT NULL COMMENT '任务唯一ID',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
@@ -77,9 +73,8 @@ CREATE TABLE IF NOT EXISTS `expert_release_task` (
   KEY `idx_release_task_expert_status` (`expert_id`,`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家发布任务';
 
--- expert_databuff.expert_training_task 表定义
-
-CREATE TABLE IF NOT EXISTS `expert_training_task` (
+-- de_expert_training_task 表定义
+CREATE TABLE IF NOT EXISTS `de_expert_training_task` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `task_id` varchar(64) NOT NULL COMMENT '任务唯一ID',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
@@ -106,9 +101,8 @@ CREATE TABLE IF NOT EXISTS `expert_training_task` (
   KEY `idx_training_task_session` (`session_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家训练任务';
 
--- expert_databuff.expert_skill_binding 表定义
-
-CREATE TABLE IF NOT EXISTS `expert_skill_binding` (
+-- de_expert_skill_binding 表定义
+CREATE TABLE IF NOT EXISTS `de_expert_skill_binding` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
   `skill_id` bigint NOT NULL COMMENT '技能包ID',
@@ -119,9 +113,8 @@ CREATE TABLE IF NOT EXISTS `expert_skill_binding` (
   KEY `idx_expert_skill_expert_id` (`expert_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家技能绑定';
 
--- expert_databuff.expert_static_package_binding 表定义
-
-CREATE TABLE IF NOT EXISTS `expert_static_package_binding` (
+-- de_expert_static_package_binding 表定义
+CREATE TABLE IF NOT EXISTS `de_expert_static_package_binding` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `expert_id` bigint NOT NULL COMMENT '专家ID',
   `static_package_id` bigint NOT NULL COMMENT '静态资源包ID',
@@ -132,9 +125,8 @@ CREATE TABLE IF NOT EXISTS `expert_static_package_binding` (
   KEY `idx_expert_static_pkg_expert_id` (`expert_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专家静态资源包绑定';
 
--- expert_databuff.skill_package 表定义
-
-CREATE TABLE IF NOT EXISTS `skill_package` (
+-- de_skill_package 表定义
+CREATE TABLE IF NOT EXISTS `de_skill_package` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) NOT NULL COMMENT '技能名称',
   `description` text NOT NULL COMMENT '技能描述',
@@ -147,9 +139,8 @@ CREATE TABLE IF NOT EXISTS `skill_package` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='技能包';
 
--- expert_databuff.static_package 表定义
-
-CREATE TABLE IF NOT EXISTS `static_package` (
+-- de_static_package 表定义
+CREATE TABLE IF NOT EXISTS `de_static_package` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) NOT NULL COMMENT '静态资源包名称',
   `static_type` varchar(64) NOT NULL COMMENT '静态资源包类型',
@@ -162,3 +153,58 @@ CREATE TABLE IF NOT EXISTS `static_package` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='静态资源包';
+
+-- de_ai_agent 表定义
+CREATE TABLE IF NOT EXISTS `de_ai_agent` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `agent_name` varchar(128) NOT NULL COMMENT 'AI Agent名称',
+  `description` varchar(512) DEFAULT NULL COMMENT 'AI Agent描述',
+  `agent_path` varchar(512) NOT NULL COMMENT 'AI Agent技能输出目录',
+  `status` varchar(32) NOT NULL COMMENT '状态：DRAFT/ACTIVE/DISABLED',
+  `auto_binding` tinyint NOT NULL DEFAULT '0' COMMENT '自动绑定标记：0-否 1-是',
+  `activated_at` timestamp NULL DEFAULT NULL COMMENT '启用时间',
+  `disabled_at` timestamp NULL DEFAULT NULL COMMENT '禁用时间',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_de_ai_agent_name` (`agent_name`),
+  UNIQUE KEY `uk_de_ai_agent_path` (`agent_path`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Agent';
+
+-- de_agent_skill_binding 表定义
+CREATE TABLE IF NOT EXISTS `de_agent_skill_binding` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `agent_id` bigint NOT NULL COMMENT 'AI Agent ID',
+  `skill_id` bigint NOT NULL COMMENT '技能包ID',
+  `sort_no` int DEFAULT NULL COMMENT '排序号',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_de_agent_skill` (`agent_id`,`skill_id`),
+  KEY `idx_de_agent_skill_binding_agent_id` (`agent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Agent技能绑定';
+
+-- de_agent_expert_binding 表定义
+CREATE TABLE IF NOT EXISTS `de_agent_expert_binding` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `agent_id` bigint NOT NULL COMMENT 'AI Agent ID',
+  `expert_id` bigint NOT NULL COMMENT '数字专家ID',
+  `sort_no` int DEFAULT NULL COMMENT '排序号',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_de_agent_expert` (`agent_id`,`expert_id`),
+  KEY `idx_de_agent_expert_binding_agent_id` (`agent_id`),
+  KEY `idx_de_agent_expert_binding_expert_id` (`expert_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Agent专家绑定';
+
+-- de_agent_skill_deployment 表定义
+CREATE TABLE IF NOT EXISTS `de_agent_skill_deployment` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `agent_id` bigint NOT NULL COMMENT 'AI Agent ID',
+  `skill_id` bigint NOT NULL COMMENT '已部署技能包ID',
+  `skill_directory_name` varchar(255) NOT NULL COMMENT '技能落盘目录名',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_de_agent_skill_directory` (`agent_id`,`skill_directory_name`),
+  KEY `idx_de_agent_skill_deployment_agent_id` (`agent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Agent技能部署记录';

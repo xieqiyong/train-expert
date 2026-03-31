@@ -15,8 +15,9 @@ import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.SkillPackageResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
+import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
+import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
-import com.databuff.digitalexpert.dao.entity.ExpertAgentBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertReleaseTaskEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertSkillBindingEntity;
@@ -28,8 +29,9 @@ import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
+import com.databuff.digitalexpert.dao.mapper.AgentExpertBindingMapper;
+import com.databuff.digitalexpert.dao.mapper.AiAgentMapper;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
-import com.databuff.digitalexpert.dao.mapper.ExpertAgentBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertMcpBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertReleaseTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
@@ -50,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +68,9 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Autowired
     private ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
     @Autowired
-    private ExpertAgentBindingMapper expertAgentBindingMapper;
+    private AiAgentMapper aiAgentMapper;
+    @Autowired
+    private AgentExpertBindingMapper agentExpertBindingMapper;
     @Autowired
     private ExpertMcpBindingMapper expertMcpBindingMapper;
     @Autowired
@@ -139,57 +144,79 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     public List<AgentBindingGroupResponse> listAgentBindings() {
-        List<ExpertAgentBindingEntity> bindings = expertAgentBindingMapper.selectList(
-                new LambdaQueryWrapper<ExpertAgentBindingEntity>()
-                        .orderByAsc(ExpertAgentBindingEntity::getAgentName,
-                                ExpertAgentBindingEntity::getAgentPath,
-                                ExpertAgentBindingEntity::getExpertId,
-                                ExpertAgentBindingEntity::getId)
+        List<AgentExpertBindingEntity> bindings = agentExpertBindingMapper.selectList(
+                new LambdaQueryWrapper<AgentExpertBindingEntity>()
+                        .orderByAsc(AgentExpertBindingEntity::getAgentId,
+                                AgentExpertBindingEntity::getSortNo,
+                                AgentExpertBindingEntity::getId)
         );
         if (bindings == null || bindings.isEmpty()) {
             return List.of();
         }
 
         Set<Long> bindingExpertIds = bindings.stream()
-                .map(ExpertAgentBindingEntity::getExpertId)
+                .map(AgentExpertBindingEntity::getExpertId)
                 .filter(Objects::nonNull)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-        if (bindingExpertIds.isEmpty()) {
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> bindingAgentIds = bindings.stream()
+                .map(AgentExpertBindingEntity::getAgentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (bindingExpertIds.isEmpty() || bindingAgentIds.isEmpty()) {
             return List.of();
         }
 
-        Set<Long> startedExpertIds = digitalExpertMapper.selectList(
+        Map<Long, DigitalExpertEntity> startedExpertMap = digitalExpertMapper.selectList(
                         new LambdaQueryWrapper<DigitalExpertEntity>()
                                 .in(DigitalExpertEntity::getId, bindingExpertIds)
                                 .eq(DigitalExpertEntity::getStatus, ExpertStatus.STARTED.name())
                 ).stream()
-                .map(DigitalExpertEntity::getId)
-                .filter(Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
-        if (startedExpertIds.isEmpty()) {
+                .collect(Collectors.toMap(
+                        DigitalExpertEntity::getId,
+                        expert -> expert,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        if (startedExpertMap.isEmpty()) {
             return List.of();
         }
 
-        Map<String, AgentBindingAccumulator> groupMap = new LinkedHashMap<>();
-        for (ExpertAgentBindingEntity binding : bindings) {
+        Map<Long, AiAgentEntity> agentMap = aiAgentMapper.selectList(
+                        new LambdaQueryWrapper<AiAgentEntity>()
+                                .in(AiAgentEntity::getId, bindingAgentIds)
+                ).stream()
+                .collect(Collectors.toMap(
+                        AiAgentEntity::getId,
+                        agent -> agent,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        if (agentMap.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, AgentBindingAccumulator> groupMap = new LinkedHashMap<>();
+        for (AgentExpertBindingEntity binding : bindings) {
             if (binding == null) {
                 continue;
             }
-            if (binding.getExpertId() == null || !startedExpertIds.contains(binding.getExpertId())) {
+            DigitalExpertEntity expert = startedExpertMap.get(binding.getExpertId());
+            AiAgentEntity agent = agentMap.get(binding.getAgentId());
+            if (expert == null || agent == null) {
                 continue;
             }
-            String agentName = normalizeOptionalText(binding.getAgentName());
-            String agentPath = normalizeOptionalText(binding.getAgentPath());
+            String agentName = normalizeOptionalText(agent.getAgentName());
+            String agentPath = normalizeOptionalText(agent.getAgentPath());
             if (agentName == null) {
                 continue;
             }
             AgentBindingAccumulator accumulator = groupMap.computeIfAbsent(
-                    agentName,
+                    agent.getId(),
                     key -> new AgentBindingAccumulator(agentName, agentPath)
             );
             accumulator.experts().add(new AgentBindingExpertResponse(
-                    binding.getExpertId(),
-                    binding.getExpertName()
+                    expert.getId(),
+                    expert.getName()
             ));
         }
 

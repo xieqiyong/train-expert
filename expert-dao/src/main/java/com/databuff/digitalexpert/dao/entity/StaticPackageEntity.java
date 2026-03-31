@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("static_package")
+@TableName("de_static_package")
 public class StaticPackageEntity {
 
     @TableId(type = IdType.AUTO)

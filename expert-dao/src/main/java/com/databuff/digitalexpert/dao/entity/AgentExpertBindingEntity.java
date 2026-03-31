@@ -7,16 +7,13 @@ import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("de_expert_mcp_binding")
-public class ExpertMcpBindingEntity {
+@TableName("de_agent_expert_binding")
+public class AgentExpertBindingEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    private Long agentId;
     private Long expertId;
-    private String bindingName;
-    private String mcpUrl;
-    private String toolWhitelistJson;
+    private Integer sortNo;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }
-

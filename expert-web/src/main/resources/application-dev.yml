@@ -57,10 +57,4 @@ digital-expert:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
   static-package: /app/upload/static
-  agent:
-    skills-output:
-      - name: agent-business
-        path: /app/agent/agent-business/skills/
-      - name: agent-product
-        path: /app/agent/agent-product/skills/
 
