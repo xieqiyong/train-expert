@@ -64,6 +64,10 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
             return;
         }
 
+        log.info("训练后置处理开始, taskId={}, outputTargets={}",
+                context.trainingTask() == null ? null : context.trainingTask().getTaskId(),
+                outputTargets);
+
         List<String> failures = new ArrayList<>();
         for (Long skillId : context.skillIds()) {
             SkillPackageEntity skillPackage = skillPackageMapper.selectById(skillId);
@@ -139,6 +143,11 @@ public class SkillOutputPostProcessor implements TrainingPostProcessor {
             );
             validateExtractedSkillDirectory(tempDirectory);
             replaceDirectory(tempDirectory, targetDirectory);
+            log.info("训练后置处理单点完成, taskId={}, skillId={}, agentName={}, outputPath={}",
+                    context.trainingTask().getTaskId(),
+                    skillPackage.getId(),
+                    outputTarget.agentName(),
+                    targetDirectory);
             log.info("技能包解压完成, taskId={}, skillId={}, outputPath={}",
                     context.trainingTask().getTaskId(),
                     skillPackage.getId(),

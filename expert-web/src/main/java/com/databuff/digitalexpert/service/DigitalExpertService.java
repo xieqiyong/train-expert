@@ -24,5 +24,5 @@ public interface DigitalExpertService {
 
     ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request);
 
-    ExpertSummaryResponse changeExpertStatus(Long expertId, ExpertStatusOperation operation);
+    List<ExpertSummaryResponse> changeExpertStatus(List<Long> expertIds, ExpertStatusOperation operation);
 }

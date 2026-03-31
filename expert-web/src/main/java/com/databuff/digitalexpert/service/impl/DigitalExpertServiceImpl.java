@@ -275,14 +275,22 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
-    public ExpertSummaryResponse changeExpertStatus(Long expertId, ExpertStatusOperation operation) {
+    public List<ExpertSummaryResponse> changeExpertStatus(List<Long> expertIds, ExpertStatusOperation operation) {
         if (operation == null) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家状态操作不能为空");
         }
-        return switch (operation) {
-            case ENABLE -> disableExpertInternal(expertId, ExpertStatus.STARTED);
-            case DISABLE -> disableExpertInternal(expertId, ExpertStatus.DISABLED);
-        };
+        if (expertIds == null || expertIds.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家ID列表不能为空");
+        }
+        List<ExpertSummaryResponse> results = new ArrayList<>();
+        for (Long expertId : expertIds) {
+            ExpertSummaryResponse result = switch (operation) {
+                case ENABLE -> disableExpertInternal(expertId, ExpertStatus.STARTED);
+                case DISABLE -> disableExpertInternal(expertId, ExpertStatus.DISABLED);
+            };
+            results.add(result);
+        }
+        return results;
     }
 
     private ExpertSummaryResponse disableExpertInternal(Long expertId, ExpertStatus expertStatus) {

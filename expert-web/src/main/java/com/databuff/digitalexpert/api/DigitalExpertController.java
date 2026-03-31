@@ -175,8 +175,8 @@ public class DigitalExpertController {
     }
 
     @PostMapping("/status/change")
-    public ApiResponse<ExpertSummaryResponse> changeStatus(@Valid @RequestBody ChangeExpertStatusRequest request) {
-        return ApiResponse.success(digitalExpertService.changeExpertStatus(request.expertId(), request.operation()));
+    public ApiResponse<List<ExpertSummaryResponse>> changeStatus(@Valid @RequestBody ChangeExpertStatusRequest request) {
+        return ApiResponse.success(digitalExpertService.changeExpertStatus(request.expertIds(), request.operation()));
     }
 
     private List<McpBindingRequest> parseMcpsJson(String mcpsJson) {
