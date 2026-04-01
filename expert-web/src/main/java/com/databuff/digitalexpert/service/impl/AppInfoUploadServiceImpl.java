@@ -1,5 +1,7 @@
 package com.databuff.digitalexpert.service.impl;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.AppInfoUploadResult;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
@@ -24,10 +26,13 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AppInfoUploadServiceImpl implements AppInfoUploadService {
 
+    private static final Logger log = LoggerFactory.getLogger(AppInfoUploadServiceImpl.class);
     private static final String DEFAULT_FILE_TYPE = "jar";
     private static final String UPLOAD_DIRECTORY_NAME = "jars";
     private static final String APP_INFO_DIRECTORY_NAME = "app_info";
@@ -55,9 +60,11 @@ public class AppInfoUploadServiceImpl implements AppInfoUploadService {
         if (!Files.isDirectory(appInfoPath)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "解压后未找到 app_info 目录: " + appInfoPath);
         }
+        String serviceName = resolveRawServiceName(appInfoPath);
 
         return new AppInfoUploadResult(
                 appName,
+                serviceName,
                 originalFileName,
                 originalFileName,
                 normalizeFileType(fileType),
@@ -197,6 +204,24 @@ public class AppInfoUploadServiceImpl implements AppInfoUploadService {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "无法从文件名解析应用名称");
         }
         return normalized;
+    }
+
+    private String resolveRawServiceName(Path appInfoPath) {
+        Path appJsonPath = appInfoPath.resolve("app.json");
+        if (!Files.isRegularFile(appJsonPath)) {
+            return null;
+        }
+        try {
+            JSONObject appInfoJson = JSON.parseObject(Files.readString(appJsonPath), JSONObject.class);
+            if (appInfoJson == null) {
+                return null;
+            }
+            String serviceName = appInfoJson.getString("serviceName");
+            return StringUtils.hasText(serviceName) ? serviceName : null;
+        } catch (Exception ex) {
+            log.warn("读取 app.json 服务名称失败, path={}", appJsonPath, ex);
+            return null;
+        }
     }
 
     private String normalizeFileType(String fileType) {

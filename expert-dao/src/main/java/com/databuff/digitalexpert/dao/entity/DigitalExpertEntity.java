@@ -1,5 +1,6 @@
 package com.databuff.digitalexpert.dao.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -13,6 +14,8 @@ public class DigitalExpertEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String name;
+    @TableField("app_name")
+    private String appName;
     private String description;
     private String prompt;
     private String expertType;

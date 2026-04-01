@@ -36,7 +36,7 @@ public class AutoTrainingTriggerServiceImpl implements AutoTrainingTriggerServic
         Path appInfoPath = validateAppInfoDirectory(uploadResult.appInfoPath());
 
         AutoExpertResolveService.ResolvedExpert resolvedExpert =
-                autoExpertResolveService.resolveOrCreateByServiceName(appName);
+                autoExpertResolveService.resolveOrCreateByServiceName(appName, uploadResult.serviceName());
         ExpertTrainingTaskResponse taskResponse = expertTrainingService.submitTrainingTask(
                 resolvedExpert.expertId(),
                 new CreateExpertTrainingTaskRequest(

@@ -2,6 +2,7 @@ package com.databuff.digitalexpert.dao.dto;
 
 public record AppInfoUploadResult(
         String appName,
+        String serviceName,
         String originalFileName,
         String storageFileName,
         String fileType,
