@@ -40,7 +40,7 @@ public class AutoTrainingTriggerServiceImpl implements AutoTrainingTriggerServic
         ExpertTrainingTaskResponse taskResponse = expertTrainingService.submitTrainingTask(
                 resolvedExpert.expertId(),
                 new CreateExpertTrainingTaskRequest(
-                        List.of(new TrainingSourceRequest(TrainingSourceType.LOCAL_PATH.name(), appInfoPath.toString())),
+                        List.of(new TrainingSourceRequest(TrainingSourceType.LOCAL_PATH.name(), appInfoPath.toString(), null)),
                         buildTrainingGoal(appName, appInfoPath)
                 )
         );

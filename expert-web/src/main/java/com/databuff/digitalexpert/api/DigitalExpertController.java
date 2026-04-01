@@ -15,8 +15,10 @@ import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertTaskListQueryRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTaskRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
+import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
+import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitExpertTrainingTaskRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsCommand;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
@@ -96,11 +98,44 @@ public class DigitalExpertController {
         ));
     }
 
+    @PostMapping(value = "/training-tasks/forward/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ForwardTrainingSubmitResponse> submitForwardTraining(
+            @RequestParam("name") String name,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "prompt", required = false) String prompt,
+            @RequestParam(value = "expertType", required = false) String expertType,
+            @RequestParam("sourceType") String sourceType,
+            @RequestParam(value = "sourceValue", required = false) String sourceValue,
+            @RequestParam(value = "sourceVersion", required = false) String sourceVersion,
+            @RequestParam(value = "trainingGoal", required = false) String trainingGoal,
+            @RequestPart(value = "docPackageFile", required = false) MultipartFile docPackageFile) {
+        if (docPackageFile != null && !docPackageFile.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "当前版本暂不支持文档压缩包正向训练");
+        }
+        return ApiResponse.success(digitalExpertService.submitForwardTraining(
+                new SubmitForwardTrainingRequest(
+                        name,
+                        description,
+                        prompt,
+                        expertType,
+                        sourceType,
+                        sourceValue,
+                        sourceVersion,
+                        trainingGoal
+                )
+        ));
+    }
+
     @PostMapping("/bindings/update")
     public ApiResponse<ExpertBindingUpdateResponse> updateBindings(@Valid @RequestBody UpdateExpertBindingsCommand request) {
         return ApiResponse.success(
                 digitalExpertService.updateBindings(request.expertId(), request.toBindingsRequest())
         );
+    }
+
+    @PostMapping("/delete")
+    public ApiResponse<Boolean> deleteExpert(@Valid @RequestBody ExpertIdRequest request) {
+        return ApiResponse.success(digitalExpertService.deleteExpert(request.expertId()));
     }
 
     @PostMapping("/release-tasks/submit")

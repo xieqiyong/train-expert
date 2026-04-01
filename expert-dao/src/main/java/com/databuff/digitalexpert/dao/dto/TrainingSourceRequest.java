@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public record TrainingSourceRequest(
         @NotBlank String sourceType,
-        @NotBlank String sourceValue
+        @NotBlank String sourceValue,
+        String sourceVersion
 ) {
 }

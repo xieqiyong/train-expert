@@ -11,9 +11,14 @@ import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
+import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
+import com.databuff.digitalexpert.dao.dto.CreateExpertTrainingTaskRequest;
 import com.databuff.digitalexpert.dao.dto.SkillPackageResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
+import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
@@ -22,12 +27,14 @@ import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertReleaseTaskEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertSkillBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
+import com.databuff.digitalexpert.dao.entity.ExpertAgentBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
+import com.databuff.digitalexpert.dao.enums.TrainingSourceType;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
 import com.databuff.digitalexpert.dao.mapper.AgentExpertBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.AiAgentMapper;
@@ -36,13 +43,21 @@ import com.databuff.digitalexpert.dao.mapper.ExpertMcpBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertReleaseTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
+import com.databuff.digitalexpert.dao.mapper.ExpertAgentBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
 import com.databuff.digitalexpert.service.DigitalExpertService;
+import com.databuff.digitalexpert.service.AgentDeploymentService;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
+import com.databuff.digitalexpert.service.ExpertTrainingService;
 import com.databuff.digitalexpert.service.SkillPackageService;
 import com.databuff.digitalexpert.service.StaticPackageService;
+import com.databuff.digitalexpert.service.storage.SharedStorageService;
+import com.databuff.digitalexpert.config.ExpertProperties;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -78,6 +93,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Autowired
     private ExpertTrainingTaskMapper expertTrainingTaskMapper;
     @Autowired
+    private ExpertAgentBindingMapper expertAgentBindingMapper;
+    @Autowired
     private SkillPackageService skillPackageService;
     @Autowired
     private StaticPackageService staticPackageService;
@@ -85,6 +102,14 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     private ExpertConfigService expertConfigService;
     @Autowired
     private ExpertReleaseService expertReleaseService;
+    @Autowired
+    private ExpertTrainingService expertTrainingService;
+    @Autowired
+    private AgentDeploymentService agentDeploymentService;
+    @Autowired
+    private SharedStorageService sharedStorageService;
+    @Autowired
+    private ExpertProperties expertProperties;
 
     @Override
     @Transactional
@@ -264,6 +289,33 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
+    public ForwardTrainingSubmitResponse submitForwardTraining(SubmitForwardTrainingRequest request) {
+        if (request == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "正向训练请求不能为空");
+        }
+        String sourceType = normalizeForwardSourceType(request.sourceType());
+        String sourceValue = normalizeForwardSourceValue(sourceType, request.sourceValue());
+        String sourceVersion = normalizeForwardSourceVersion(sourceType, request.sourceVersion());
+
+        ForwardExpertResolution resolution = resolveOrCreateForwardExpert(request);
+        ExpertTrainingTaskResponse trainingTask = expertTrainingService.submitTrainingTask(
+                resolution.expert().id(),
+                new CreateExpertTrainingTaskRequest(
+                        List.of(new TrainingSourceRequest(sourceType, sourceValue, sourceVersion)),
+                        normalizeOptionalText(request.trainingGoal())
+                )
+        );
+        return new ForwardTrainingSubmitResponse(
+                resolution.expert(),
+                resolution.created(),
+                trainingTask,
+                sourceType,
+                sourceVersion
+        );
+    }
+
+    @Override
+    @Transactional
     public ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
         if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
@@ -325,6 +377,56 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
+    public boolean deleteExpert(Long expertId) {
+        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        if (hasActiveReleaseTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
+                    "专家存在进行中的发布任务: " + expertId
+            );
+        }
+        if (hasActiveTrainingTask(expertId)) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_TRAINING_TASK_EXISTS,
+                    "专家存在进行中的训练任务: " + expertId
+            );
+        }
+
+        List<Long> affectedAgentIds = agentExpertBindingMapper.selectList(
+                        new LambdaQueryWrapper<AgentExpertBindingEntity>()
+                                .eq(AgentExpertBindingEntity::getExpertId, expertId)
+                                .orderByAsc(AgentExpertBindingEntity::getAgentId, AgentExpertBindingEntity::getId)
+                ).stream()
+                .map(AgentExpertBindingEntity::getAgentId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        agentExpertBindingMapper.delete(new LambdaQueryWrapper<AgentExpertBindingEntity>()
+                .eq(AgentExpertBindingEntity::getExpertId, expertId));
+        expertAgentBindingMapper.delete(new LambdaQueryWrapper<ExpertAgentBindingEntity>()
+                .eq(ExpertAgentBindingEntity::getExpertId, expertId));
+        expertSkillBindingMapper.delete(new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                .eq(ExpertSkillBindingEntity::getExpertId, expertId));
+        expertStaticPackageBindingMapper.delete(new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                .eq(ExpertStaticPackageBindingEntity::getExpertId, expertId));
+        expertMcpBindingMapper.delete(new LambdaQueryWrapper<ExpertMcpBindingEntity>()
+                .eq(ExpertMcpBindingEntity::getExpertId, expertId));
+        expertReleaseTaskMapper.delete(new LambdaQueryWrapper<ExpertReleaseTaskEntity>()
+                .eq(ExpertReleaseTaskEntity::getExpertId, expertId));
+        expertTrainingTaskMapper.delete(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                .eq(ExpertTrainingTaskEntity::getExpertId, expertId));
+        digitalExpertMapper.deleteById(expertId);
+
+        deleteExpertStorage(expertId);
+        for (Long agentId : affectedAgentIds) {
+            agentDeploymentService.refreshAgent(agentId);
+        }
+        return true;
+    }
+
+    @Override
+    @Transactional
     public List<ExpertSummaryResponse> changeExpertStatus(List<Long> expertIds, ExpertStatusOperation operation) {
         if (operation == null) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家状态操作不能为空");
@@ -381,12 +483,102 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         return count != null && count > 0;
     }
 
+    private void deleteExpertStorage(Long expertId) {
+        sharedStorageService.deleteRecursively(sharedStorageService.resolveExpertRoot(expertId));
+        deleteTrainingOutputDirectory(expertId);
+    }
+
+    private void deleteTrainingOutputDirectory(Long expertId) {
+        String outputRoot = expertProperties.getTraining().getOutputRoot();
+        if (outputRoot == null || outputRoot.isBlank() || expertId == null) {
+            return;
+        }
+        Path trainingRoot = Path.of(outputRoot).toAbsolutePath().normalize();
+        Path expertDirectory = trainingRoot.resolve(String.valueOf(expertId)).toAbsolutePath().normalize();
+        if (!expertDirectory.startsWith(trainingRoot) || !Files.exists(expertDirectory)) {
+            return;
+        }
+        try (var stream = Files.walk(expertDirectory)) {
+            stream.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException ex) {
+                    throw new IllegalStateException("删除训练输出目录失败: " + path, ex);
+                }
+            });
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "删除专家训练输出目录失败: " + expertDirectory);
+        }
+    }
+
     private void ensureExpertNameUnique(String name) {
         Long count = digitalExpertMapper.selectCount(new LambdaQueryWrapper<DigitalExpertEntity>()
                 .eq(DigitalExpertEntity::getName, name));
         if (count != null && count > 0) {
             throw BusinessException.conflict(ErrorCode.DUPLICATE_RESOURCE, "专家名称已存在: " + name);
         }
+    }
+
+    private ForwardExpertResolution resolveOrCreateForwardExpert(SubmitForwardTrainingRequest request) {
+        String name = normalizeName(request.name());
+        String description = normalizeOptionalText(request.description());
+        String prompt = normalizeOptionalText(request.prompt());
+        String expertType = resolveExpertType(request.expertType());
+
+        DigitalExpertEntity existingExpert = findExpertByName(name);
+        if (existingExpert == null) {
+            ExpertSummaryResponse createdExpert = createExpert(new CreateExpertRequest(
+                    name,
+                    description,
+                    prompt,
+                    expertType
+            ));
+            return new ForwardExpertResolution(createdExpert, true);
+        }
+
+        existingExpert.setDescription(description);
+        existingExpert.setPrompt(prompt);
+        existingExpert.setExpertType(expertType);
+        existingExpert.setUpdatedAt(LocalDateTime.now());
+        digitalExpertMapper.updateById(existingExpert);
+        return new ForwardExpertResolution(toSummary(existingExpert), false);
+    }
+
+    private DigitalExpertEntity findExpertByName(String name) {
+        return digitalExpertMapper.selectOne(new LambdaQueryWrapper<DigitalExpertEntity>()
+                .eq(DigitalExpertEntity::getName, name)
+                .last("limit 1"));
+    }
+
+    private String normalizeForwardSourceType(String sourceType) {
+        if (sourceType == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "训练源类型不能为空");
+        }
+        String normalized = sourceType.trim().toUpperCase(Locale.ROOT);
+        if (!TrainingSourceType.GIT_URL.name().equals(normalized)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "当前仅支持 GIT_URL 正向训练");
+        }
+        return normalized;
+    }
+
+    private String normalizeForwardSourceValue(String sourceType, String sourceValue) {
+        if (TrainingSourceType.GIT_URL.name().equals(sourceType)) {
+            if (sourceValue == null || sourceValue.isBlank()) {
+                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Git 仓库地址不能为空");
+            }
+            return sourceValue.trim();
+        }
+        return normalizeOptionalText(sourceValue);
+    }
+
+    private String normalizeForwardSourceVersion(String sourceType, String sourceVersion) {
+        if (TrainingSourceType.GIT_URL.name().equals(sourceType)) {
+            if (sourceVersion == null || sourceVersion.isBlank()) {
+                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "Git 分支或版本号不能为空");
+            }
+            return sourceVersion.trim();
+        }
+        return normalizeOptionalText(sourceVersion);
     }
 
     private String normalizeName(String name) {
@@ -550,5 +742,11 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         private AgentBindingAccumulator(String agentName, String agentPath) {
             this(agentName, agentPath, new ArrayList<>());
         }
+    }
+
+    private record ForwardExpertResolution(
+            ExpertSummaryResponse expert,
+            boolean created
+    ) {
     }
 }
