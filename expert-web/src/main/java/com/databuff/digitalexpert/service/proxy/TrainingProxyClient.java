@@ -11,6 +11,8 @@ public interface TrainingProxyClient {
 
     boolean isSessionFinished(String sessionId);
 
+    void abortConversation(String sessionId);
+
     record ProxySubmitResult(String sessionId, String requestId) {
     }
 }

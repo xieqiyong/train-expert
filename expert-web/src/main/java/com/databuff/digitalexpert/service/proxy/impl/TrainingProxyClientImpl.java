@@ -101,6 +101,23 @@ public class TrainingProxyClientImpl implements TrainingProxyClient {
     /**
      * 执行HTTP请求
      */
+    @Override
+    public void abortConversation(String sessionId) {
+        if (!StringUtils.hasText(sessionId)) {
+            throw BusinessException.badRequest(
+                    ErrorCode.TRAINING_PROXY_REQUEST_FAILED,
+                    "会话标识不能为空"
+            );
+        }
+        HttpResponsePayload response = execute(
+                ProxyApiType.ABORT_CONVERSATION,
+                sessionId,
+                sessionId,
+                null
+        );
+        ensureSuccess(ProxyApiType.ABORT_CONVERSATION, response);
+    }
+
     private HttpResponsePayload execute(ProxyApiType apiType, String traceId, String sessionId, String jsonBody) {
         String url = apiType.buildUrl(requireBaseUrl(), sessionId);
         HttpRequest request = HttpUtil.createRequest(apiType.method(), url)

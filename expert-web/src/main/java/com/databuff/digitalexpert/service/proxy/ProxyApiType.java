@@ -8,7 +8,8 @@ import cn.hutool.http.Method;
  */
 public enum ProxyApiType {
     CHAT("代理聊天接口", Method.POST, "/chat"),
-    SESSION_FINISHED("会话状态接口", Method.GET, "/session/{sessionId}/finished");
+    SESSION_FINISHED("会话状态接口", Method.GET, "/session/{sessionId}/finished"),
+    ABORT_CONVERSATION("会话中止接口", Method.POST, "/session/{sessionId}/abort");
 
     /**
      * 接口名称（用于日志/异常）

@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -71,6 +72,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private static final Pattern AUTO_VERSION_PATTERN = Pattern.compile("^v(\\d+)$", Pattern.CASE_INSENSITIVE);
 
     private final Set<String> pollingTaskLocks = ConcurrentHashMap.newKeySet();
+    private final Set<String> abortingTaskIds = ConcurrentHashMap.newKeySet();
 
     @Autowired
     private ExpertTrainingTaskMapper expertTrainingTaskMapper;
@@ -173,6 +175,36 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     @Override
+    public boolean abortTask(Long expertId, String taskId) {
+        ExpertTrainingTaskEntity task = expertTrainingTaskMapper.selectOne(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                .eq(ExpertTrainingTaskEntity::getTaskId, taskId)
+                .eq(ExpertTrainingTaskEntity::getExpertId, expertId));
+        if (task == null) {
+            throw BusinessException.notFound(ErrorCode.TRAINING_TASK_NOT_FOUND,
+                    "训练任务不存在: " + taskId);
+        }
+        if (!supportsAbort(task.getStatus())) {
+            throw BusinessException.conflict(ErrorCode.INVALID_REQUEST,
+                    "当前训练任务状态不支持中止: " + task.getStatus());
+        }
+        abortingTaskIds.add(taskId);
+        try {
+            if (StringUtils.hasText(task.getSessionId())) {
+                trainingProxyClient.abortConversation(task.getSessionId());
+            }
+            cleanupTaskOutputSafely(task);
+            restoreExpertStatusAfterAbort(task);
+            pollingTaskLocks.remove(taskId);
+            expertTrainingTaskMapper.deleteById(task.getId());
+            log.info("训练任务已中止并清理记录, taskId={}, expertId={}, sessionId={}",
+                    task.getTaskId(), task.getExpertId(), task.getSessionId());
+            return true;
+        } finally {
+            abortingTaskIds.remove(taskId);
+        }
+    }
+
+    @Override
     @Scheduled(fixedDelayString = "${digital-expert.training.poll-interval-ms:5000}")
     public void pollTrainingTasks() {
         List<ExpertTrainingTaskEntity> tasks = expertTrainingTaskMapper.selectList(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
@@ -196,11 +228,20 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private void submitTaskToProxy(String taskId, String trainingGoal) {
-        ExpertTrainingTaskEntity task = requireTask(taskId);
+        if (abortingTaskIds.contains(taskId)) {
+            return;
+        }
+        ExpertTrainingTaskEntity task = findTask(taskId);
+        if (task == null) {
+            return;
+        }
         if (!TrainingTaskStatus.PENDING.name().equals(task.getStatus())) {
             return;
         }
         try {
+            if (abortingTaskIds.contains(taskId)) {
+                return;
+            }
             markTaskRunning(task);
             markExpertTraining(task.getExpertId(), taskId);
 
@@ -214,6 +255,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             String skillDirName = resolveSkillDirectoryName(sources, taskId, expert.getName());
             Path versionDirectory = outputDir;
             String prompt = buildPrompt(trainingGoal, sources, skillDirName, skillRootDirectory, versionDirectory);
+            if (abortingTaskIds.contains(taskId)) {
+                return;
+            }
             TrainingProxyClient.ProxySubmitResult submitResult = trainingProxyClient.submitTraining(
                     taskId,
                     prompt,
@@ -221,7 +265,10 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                     versionDirectory.toString()
             );
 
-            task = requireTask(taskId);
+            task = findTask(taskId);
+            if (task == null || abortingTaskIds.contains(taskId)) {
+                return;
+            }
             task.setSessionId(taskId);
             task.setSubmitRequestId(submitResult.requestId());
             task.setUpdatedAt(LocalDateTime.now());
@@ -231,12 +278,20 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             digitalExpertMapper.updateById(expert);
         } catch (Exception ex) {
             log.error("提交训练任务到代理失败, taskId={}", taskId, ex);
-            markTaskFailed(taskId, ex.getMessage());
+            if (findTask(taskId) != null && !abortingTaskIds.contains(taskId)) {
+                markTaskFailed(taskId, ex.getMessage());
+            }
         }
     }
 
     private void pollSingleTask(String taskId) {
-        ExpertTrainingTaskEntity task = requireTask(taskId);
+        if (abortingTaskIds.contains(taskId)) {
+            return;
+        }
+        ExpertTrainingTaskEntity task = findTask(taskId);
+        if (task == null) {
+            return;
+        }
         if (TrainingTaskStatus.RUNNING.name().equals(task.getStatus())) {
             handleRunningTask(task);
             return;
@@ -875,7 +930,10 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private void markTaskSucceeded(String taskId) {
-        ExpertTrainingTaskEntity task = requireTask(taskId);
+        ExpertTrainingTaskEntity task = findTask(taskId);
+        if (task == null) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         task.setStatus(TrainingTaskStatus.SUCCEEDED.name());
         task.setArtifactVerified(1);
@@ -895,7 +953,10 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private void markTaskFailed(String taskId, String reason) {
-        ExpertTrainingTaskEntity task = requireTask(taskId);
+        ExpertTrainingTaskEntity task = findTask(taskId);
+        if (task == null) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         task.setStatus(TrainingTaskStatus.FAILED.name());
         task.setFailureReason(truncateReason(reason));
@@ -967,6 +1028,12 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 .eq(ExpertTrainingTaskEntity::getExpertId, expertId)
                 .in(ExpertTrainingTaskEntity::getStatus, TrainingTaskStatus.activeTaskStatuses()));
         return count != null && count > 0;
+    }
+
+    private boolean supportsAbort(String status) {
+        return TrainingTaskStatus.PENDING.name().equals(status)
+                || TrainingTaskStatus.RUNNING.name().equals(status)
+                || TrainingTaskStatus.VERIFYING_ARTIFACTS.name().equals(status);
     }
 
     private void cleanupTaskOutputSafely(ExpertTrainingTaskEntity task) {
@@ -1047,6 +1114,25 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         expert.setLastTrainingTaskId(task.getTaskId());
         if (StringUtils.hasText(task.getSessionId())) {
             expert.setLastTrainingSessionId(task.getSessionId());
+        }
+        expert.setUpdatedAt(LocalDateTime.now());
+        digitalExpertMapper.updateById(expert);
+    }
+
+    private void restoreExpertStatusAfterAbort(ExpertTrainingTaskEntity task) {
+        DigitalExpertEntity expert = expertConfigService.requireExpert(task.getExpertId());
+        String previousStatus = task.getPreviousExpertStatus();
+        if (StringUtils.hasText(previousStatus)) {
+            expert.setStatus(previousStatus);
+        } else if (ExpertStatus.TRAINING.name().equals(expert.getStatus())) {
+            expert.setStatus(ExpertStatus.DRAFT.name());
+        }
+        if (Objects.equals(expert.getLastTrainingTaskId(), task.getTaskId())) {
+            expert.setLastTrainingTaskId(null);
+        }
+        if (StringUtils.hasText(task.getSessionId())
+                && Objects.equals(expert.getLastTrainingSessionId(), task.getSessionId())) {
+            expert.setLastTrainingSessionId(null);
         }
         expert.setUpdatedAt(LocalDateTime.now());
         digitalExpertMapper.updateById(expert);
@@ -1274,13 +1360,17 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private ExpertTrainingTaskEntity requireTask(String taskId) {
-        ExpertTrainingTaskEntity task = expertTrainingTaskMapper.selectOne(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
-                .eq(ExpertTrainingTaskEntity::getTaskId, taskId));
+        ExpertTrainingTaskEntity task = findTask(taskId);
         if (task == null) {
             throw BusinessException.notFound(ErrorCode.TRAINING_TASK_NOT_FOUND,
                     "训练任务不存在: " + taskId);
         }
         return task;
+    }
+
+    private ExpertTrainingTaskEntity findTask(String taskId) {
+        return expertTrainingTaskMapper.selectOne(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                .eq(ExpertTrainingTaskEntity::getTaskId, taskId));
     }
 
     private String truncateReason(String reason) {

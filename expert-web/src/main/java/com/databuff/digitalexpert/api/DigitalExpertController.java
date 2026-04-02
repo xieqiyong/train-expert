@@ -169,6 +169,11 @@ public class DigitalExpertController {
         return ApiResponse.success(expertTrainingService.getTask(request.expertId(), request.taskId()));
     }
 
+    @PostMapping("/training-tasks/abort")
+    public ApiResponse<Boolean> abortTrainingTask(@Valid @RequestBody ExpertTaskRequest request) {
+        return ApiResponse.success(expertTrainingService.abortTask(request.expertId(), request.taskId()));
+    }
+
     @PostMapping("/training-tasks/list")
     public ApiResponse<List<ExpertTrainingTaskResponse>> listTrainingTasks(@RequestBody(required = false) ExpertTaskListQueryRequest request) {
         return ApiResponse.success(expertTrainingService.listTasks(request == null ? null : request.expertId()));

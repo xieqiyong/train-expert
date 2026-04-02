@@ -12,5 +12,7 @@ public interface ExpertTrainingService {
 
     List<ExpertTrainingTaskResponse> listTasks(Long expertId);
 
+    boolean abortTask(Long expertId, String taskId);
+
     void pollTrainingTasks();
 }
