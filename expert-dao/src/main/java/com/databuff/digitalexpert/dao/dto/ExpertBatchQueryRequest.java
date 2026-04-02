@@ -5,7 +5,8 @@ import java.util.List;
 
 public record ExpertBatchQueryRequest(
         List<String> names,
-        ExpertType expertType
+        ExpertType expertType,
+        List<String> appNames
 
 ) {
 }

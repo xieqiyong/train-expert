@@ -5,6 +5,7 @@ public record ExpertSummaryResponse(
         String name,
         String description,
         String expertType,
-        String status
+        String status,
+        Boolean trainingInProgress
 ) {
 }

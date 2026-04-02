@@ -132,30 +132,31 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     }
 
     @Override
-    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType) {
+    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType, List<String> appNames) {
         List<String> normalizedNames = normalizeQueryNames(names);
+        List<String> normalizedAppNames = normalizeQueryAppNames(appNames);
         String normalizedExpertType = expertType == null ? null : expertType.name();
-        if (normalizedNames.isEmpty()) {
-            LambdaQueryWrapper<DigitalExpertEntity> queryWrapper = new LambdaQueryWrapper<DigitalExpertEntity>()
-                    .orderByDesc(DigitalExpertEntity::getId);
-            if (normalizedExpertType != null) {
-                queryWrapper.eq(DigitalExpertEntity::getExpertType, normalizedExpertType);
-            }
-            return digitalExpertMapper.selectList(queryWrapper)
-                    .stream()
-                    .map(this::toSummary)
-                    .toList();
-        }
         LambdaQueryWrapper<DigitalExpertEntity> queryWrapper = new LambdaQueryWrapper<DigitalExpertEntity>()
-                .in(DigitalExpertEntity::getName, normalizedNames)
                 .orderByDesc(DigitalExpertEntity::getId);
+        if (!normalizedNames.isEmpty()) {
+            queryWrapper.in(DigitalExpertEntity::getName, normalizedNames);
+        }
+        if (!normalizedAppNames.isEmpty()) {
+            queryWrapper.in(DigitalExpertEntity::getAppName, normalizedAppNames);
+        }
         if (normalizedExpertType != null) {
             queryWrapper.eq(DigitalExpertEntity::getExpertType, normalizedExpertType);
         }
         List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(queryWrapper);
+        Set<Long> trainingExpertIds = loadTrainingExpertIds(experts);
+        if (normalizedNames.isEmpty()) {
+            return experts.stream()
+                    .map(expert -> toSummary(expert, trainingExpertIds.contains(expert.getId())))
+                    .toList();
+        }
         Map<String, ExpertSummaryResponse> expertMap = new LinkedHashMap<>();
         for (DigitalExpertEntity expert : experts) {
-            expertMap.put(expert.getName(), toSummary(expert));
+            expertMap.put(expert.getName(), toSummary(expert, trainingExpertIds.contains(expert.getId())));
         }
         List<ExpertSummaryResponse> result = new ArrayList<>();
         for (String normalizedName : normalizedNames) {
@@ -601,12 +602,17 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     }
 
     private ExpertSummaryResponse toSummary(DigitalExpertEntity entity) {
+        return toSummary(entity, false);
+    }
+
+    private ExpertSummaryResponse toSummary(DigitalExpertEntity entity, boolean trainingInProgress) {
         return new ExpertSummaryResponse(
                 entity.getId(),
                 entity.getName(),
                 entity.getDescription(),
                 entity.getExpertType(),
-                entity.getStatus()
+                entity.getStatus(),
+                trainingInProgress
         );
     }
 
@@ -619,6 +625,40 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             values.add(normalizeName(name));
         }
         return List.copyOf(values);
+    }
+
+    private List<String> normalizeQueryAppNames(List<String> appNames) {
+        if (appNames == null || appNames.isEmpty()) {
+            return List.of();
+        }
+        Set<String> values = new LinkedHashSet<>();
+        for (String appName : appNames) {
+            String normalized = normalizeOptionalText(appName);
+            if (normalized != null) {
+                values.add(normalized);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private Set<Long> loadTrainingExpertIds(List<DigitalExpertEntity> experts) {
+        if (experts == null || experts.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> expertIds = experts.stream()
+                .map(DigitalExpertEntity::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (expertIds.isEmpty()) {
+            return Set.of();
+        }
+        return expertTrainingTaskMapper.selectList(new LambdaQueryWrapper<ExpertTrainingTaskEntity>()
+                        .in(ExpertTrainingTaskEntity::getExpertId, expertIds)
+                        .in(ExpertTrainingTaskEntity::getStatus, TrainingTaskStatus.activeTaskStatuses()))
+                .stream()
+                .map(ExpertTrainingTaskEntity::getExpertId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private String resolveExpertType(String expertType) {

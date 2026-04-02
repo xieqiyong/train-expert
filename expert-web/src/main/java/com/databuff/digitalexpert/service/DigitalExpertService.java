@@ -18,7 +18,7 @@ public interface DigitalExpertService {
 
     ExpertSummaryResponse createExpert(CreateExpertRequest request);
 
-    List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType);
+    List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType, List<String> appNames);
 
     List<AgentBindingGroupResponse> listAgentBindings();
 

@@ -69,7 +69,11 @@ public class DigitalExpertController {
 
     @PostMapping("/list")
     public ApiResponse<List<ExpertSummaryResponse>> listExperts(@Valid @RequestBody ExpertBatchQueryRequest request) {
-        return ApiResponse.success(digitalExpertService.listExpertsByNames(request.names(), request.expertType()));
+        return ApiResponse.success(digitalExpertService.listExpertsByNames(
+                request.names(),
+                request.expertType(),
+                request.appNames()
+        ));
     }
 
     @PostMapping("/agent-bindings/list")
