@@ -9,7 +9,7 @@ public class AppInfoTrainingPromptStrategy implements TrainingPromptStrategy {
 
     @Override
     public boolean supports(TrainingPromptContext context) {
-        return context != null;
+        return context != null && context.hasAppInfoSource();
     }
 
     @Override
