@@ -902,6 +902,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         task.setFinishedAt(now);
         task.setUpdatedAt(now);
         expertTrainingTaskMapper.updateById(task);
+        cleanupTaskOutputSafely(task);
         restoreExpertStatus(task);
         log.warn("训练任务失败, taskId={}, expertId={}, reason={}",
                 task.getTaskId(), task.getExpertId(), truncateReason(reason));
@@ -916,6 +917,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         task.setFinishedAt(now);
         task.setUpdatedAt(now);
         expertTrainingTaskMapper.updateById(task);
+        cleanupTaskOutputSafely(task);
         restoreExpertStatus(task);
         log.warn("训练任务超时, taskId={}, expertId={}, reason={}",
                 task.getTaskId(), task.getExpertId(), truncateReason(reason));
@@ -965,6 +967,73 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 .eq(ExpertTrainingTaskEntity::getExpertId, expertId)
                 .in(ExpertTrainingTaskEntity::getStatus, TrainingTaskStatus.activeTaskStatuses()));
         return count != null && count > 0;
+    }
+
+    private void cleanupTaskOutputSafely(ExpertTrainingTaskEntity task) {
+        if (task == null || !StringUtils.hasText(task.getOutputDir())) {
+            return;
+        }
+        try {
+            Path trainingRoot = getTrainingOutputRoot().toAbsolutePath().normalize();
+            Path outputDirectory = Path.of(task.getOutputDir()).toAbsolutePath().normalize();
+            if (!outputDirectory.startsWith(trainingRoot)) {
+                log.warn("跳过清理训练输出目录，路径超出训练根目录, taskId={}, outputDir={}",
+                        task.getTaskId(), outputDirectory);
+                return;
+            }
+            deleteTrainingOutputDirectory(outputDirectory);
+            cleanupEmptySkillRoot(task, outputDirectory, trainingRoot);
+            log.info("训练任务收尾清理完成, taskId={}, outputDir={}", task.getTaskId(), outputDirectory);
+        } catch (Exception ex) {
+            log.warn("训练任务收尾清理失败, taskId={}, outputDir={}",
+                    task == null ? null : task.getTaskId(),
+                    task == null ? null : task.getOutputDir(),
+                    ex);
+        }
+    }
+
+    private void cleanupEmptySkillRoot(ExpertTrainingTaskEntity task, Path outputDirectory, Path trainingRoot) {
+        if (task == null || task.getExpertId() == null) {
+            return;
+        }
+        Long currentSkillCount = expertSkillBindingMapper.selectCount(new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                .eq(ExpertSkillBindingEntity::getExpertId, task.getExpertId()));
+        if (currentSkillCount != null && currentSkillCount > 0) {
+            return;
+        }
+        Path skillRootDirectory = resolveSkillRootDirectory(outputDirectory);
+        if (!skillRootDirectory.startsWith(trainingRoot) || !Files.exists(skillRootDirectory)) {
+            return;
+        }
+        deleteTrainingOutputDirectory(skillRootDirectory);
+        deleteParentDirectoryIfEmpty(skillRootDirectory.getParent(), trainingRoot);
+    }
+
+    private void deleteParentDirectoryIfEmpty(Path directory, Path trainingRoot) {
+        if (directory == null || trainingRoot == null) {
+            return;
+        }
+        Path normalizedDirectory = directory.toAbsolutePath().normalize();
+        Path normalizedTrainingRoot = trainingRoot.toAbsolutePath().normalize();
+        if (!normalizedDirectory.startsWith(normalizedTrainingRoot)
+                || normalizedDirectory.equals(normalizedTrainingRoot)
+                || !Files.isDirectory(normalizedDirectory)) {
+            return;
+        }
+        try (var stream = Files.list(normalizedDirectory)) {
+            if (stream.findAny().isPresent()) {
+                return;
+            }
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                    "检查训练父目录是否为空失败: " + normalizedDirectory);
+        }
+        try {
+            Files.deleteIfExists(normalizedDirectory);
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR,
+                    "删除空训练父目录失败: " + normalizedDirectory);
+        }
     }
 
     private void restoreExpertStatus(ExpertTrainingTaskEntity task) {
