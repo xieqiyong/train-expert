@@ -2,7 +2,7 @@ spring:
   application:
     name: databuff-digital-expert
   datasource:
-    url: ${DB_URL:jdbc:mysql://192.168.50.195:3306/expert_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    url: ${DB_URL:jdbc:mysql://192.168.50.120:13306/expert_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:234*(sdlj12}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -47,8 +47,8 @@ digital-expert:
     allow-credentials: false
     max-age-seconds: 3600
   training:
-    output-root: /app/agent/output/
-    spec-skill-path: /app/skills/root-skills-creator/
+    output-root: E:\ai-work\app\agent/output/
+    spec-skill-path: E:\ai-work\databuff-digital-expert\expert-web\src\main\resources\skills\root-skills-creator\
     poll-interval-ms: 5000
     session-timeout-ms: 1800000
     artifact-grace-period-ms: 120000
@@ -56,7 +56,7 @@ digital-expert:
   proxy:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
-  static-package: /app/upload/static
+  static-package: E:\ai-work\app\upload\static
 
 opencode:
   proxy:
