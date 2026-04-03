@@ -29,6 +29,7 @@
         <fastjson2.version>2.0.61</fastjson2.version>
         <hutool.version>5.8.25</hutool.version>
         <commons-compress.version>1.28.0</commons-compress.version>
+        <opencode.version>1.0.0</opencode.version>
     </properties>
     <dependencies>
         <dependency>
@@ -41,6 +42,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.hz.xie</groupId>
+                <artifactId>opencode-spring-boot-starter</artifactId>
+                <version>${opencode.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>

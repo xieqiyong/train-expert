@@ -59,6 +59,6 @@ digital-expert:
   static-package: E:\ai-work\app\upload\static
 
 opencode:
-  proxy:
-    timeout-ms: 15000
-    base-url: http://127.0.0.1:4096
+  base-url: http://127.0.0.1:4096
+  connect-timeout: 5000
+  read-timeout: 15000
