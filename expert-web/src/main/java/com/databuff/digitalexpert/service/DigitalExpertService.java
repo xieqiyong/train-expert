@@ -9,6 +9,7 @@ import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
+import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
 import java.util.List;
@@ -18,7 +19,10 @@ public interface DigitalExpertService {
 
     ExpertSummaryResponse createExpert(CreateExpertRequest request);
 
-    List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType, List<String> appNames);
+    List<ExpertSummaryResponse> listExpertsByNames(List<String> names,
+                                                   ExpertType expertType,
+                                                   List<String> appNames,
+                                                   ExpertStatus status);
 
     List<AgentBindingGroupResponse> listAgentBindings();
 

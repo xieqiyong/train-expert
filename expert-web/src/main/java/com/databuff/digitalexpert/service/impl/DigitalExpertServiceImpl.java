@@ -132,10 +132,14 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     }
 
     @Override
-    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names, ExpertType expertType, List<String> appNames) {
+    public List<ExpertSummaryResponse> listExpertsByNames(List<String> names,
+                                                          ExpertType expertType,
+                                                          List<String> appNames,
+                                                          ExpertStatus status) {
         List<String> normalizedNames = normalizeQueryNames(names);
         List<String> normalizedAppNames = normalizeQueryAppNames(appNames);
         String normalizedExpertType = expertType == null ? null : expertType.name();
+        String normalizedStatus = status == null ? null : status.name();
         LambdaQueryWrapper<DigitalExpertEntity> queryWrapper = new LambdaQueryWrapper<DigitalExpertEntity>()
                 .orderByDesc(DigitalExpertEntity::getId);
         if (!normalizedNames.isEmpty()) {
@@ -146,6 +150,9 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         }
         if (normalizedExpertType != null) {
             queryWrapper.eq(DigitalExpertEntity::getExpertType, normalizedExpertType);
+        }
+        if (normalizedStatus != null) {
+            queryWrapper.eq(DigitalExpertEntity::getStatus, normalizedStatus);
         }
         List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(queryWrapper);
         Set<Long> trainingExpertIds = loadTrainingExpertIds(experts);

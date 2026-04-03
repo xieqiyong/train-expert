@@ -72,7 +72,8 @@ public class DigitalExpertController {
         return ApiResponse.success(digitalExpertService.listExpertsByNames(
                 request.names(),
                 request.expertType(),
-                request.appNames()
+                request.appNames(),
+                request.status()
         ));
     }
 
