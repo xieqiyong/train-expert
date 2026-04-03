@@ -19,6 +19,7 @@ import com.databuff.digitalexpert.dao.entity.SkillPackageEntity;
 import com.databuff.digitalexpert.dao.enums.AgentStatus;
 import com.databuff.digitalexpert.dao.enums.AgentStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
+import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.mapper.AgentExpertBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.AgentSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.AiAgentMapper;
@@ -179,6 +180,7 @@ public class AiAgentServiceImpl implements AiAgentService {
         }
 
         List<DigitalExpertEntity> experts = digitalExpertMapper.selectList(new LambdaQueryWrapper<DigitalExpertEntity>()
+                .eq(DigitalExpertEntity::getStatus, ExpertStatus.STARTED.name())
                 .orderByDesc(DigitalExpertEntity::getId));
         for (DigitalExpertEntity expert : experts) {
             responses.add(toPlatformService(expert));
