@@ -23,12 +23,10 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 
-@Service
 public class ConversationServiceImpl implements ConversationService {
 
     private static final int FILE_TEXT_LIMIT = 32 * 1024;

@@ -1,6 +1,5 @@
 package com.databuff.digitalexpert.config;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.nio.file.Paths;
@@ -32,6 +31,7 @@ public class ExpertProperties {
      * 训练相关配置。
      */
     private Training training = new Training();
+    private Conversation conversation = new Conversation();
 
     /**
      * 代理服务调用配置。
@@ -129,6 +129,26 @@ public class ExpertProperties {
          */
         @Min(1000)
         private int releaseTimeoutMs = 30 * 60 * 1000;
+    }
+
+    @Getter
+    @Setter
+    public static class Conversation {
+
+        @Min(1)
+        private int executorPoolSize = 4;
+
+        @Min(1)
+        private int executorQueueCapacity = 200;
+
+        @Min(0)
+        private int bootstrapDelayMs = 300;
+
+        @Min(200)
+        private int pollIntervalMs = 1000;
+
+        @Min(1000)
+        private int syncTimeoutMs = 15 * 60 * 1000;
     }
 
     @Getter
