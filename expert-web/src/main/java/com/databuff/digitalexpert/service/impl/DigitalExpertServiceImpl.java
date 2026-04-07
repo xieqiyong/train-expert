@@ -9,11 +9,16 @@ import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertConfigResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertConfigSkillResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertConfigStaticPackageResponse;
+import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
+import com.databuff.digitalexpert.dao.dto.StaticPackageResponse;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertTrainingTaskRequest;
 import com.databuff.digitalexpert.dao.dto.SkillPackageResponse;
@@ -53,13 +58,18 @@ import com.databuff.digitalexpert.service.ExpertTrainingService;
 import com.databuff.digitalexpert.service.SkillPackageService;
 import com.databuff.digitalexpert.service.StaticPackageService;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
+import com.databuff.digitalexpert.service.storage.ZipArchiveService;
 import com.databuff.digitalexpert.config.ExpertProperties;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -67,12 +77,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 public class DigitalExpertServiceImpl implements DigitalExpertService {
 
@@ -109,7 +124,12 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Autowired
     private SharedStorageService sharedStorageService;
     @Autowired
+    private ZipArchiveService zipArchiveService;
+    @Autowired
     private ExpertProperties expertProperties;
+    @Autowired
+    @Qualifier("releaseTaskExecutor")
+    private Executor releaseTaskExecutor;
 
     @Override
     @Transactional
@@ -119,6 +139,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         LocalDateTime now = LocalDateTime.now();
         DigitalExpertEntity entity = new DigitalExpertEntity();
         entity.setName(name);
+        entity.setAliasName(name);
         entity.setDescription(normalizeOptionalText(request.description()));
         entity.setPrompt(normalizeOptionalText(request.prompt()));
         entity.setExpertType(resolveExpertType(request.expertType()));
@@ -320,6 +341,63 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 sourceType,
                 sourceVersion
         );
+    }
+
+    @Override
+    @Transactional
+    public ImportExpertPackageResponse importExpertPackage(MultipartFile packageFile, boolean autoRelease) {
+        ImportedExpertPackage importedPackage = null;
+        List<SkillPackageResponse> importedSkills = new ArrayList<>();
+        List<StaticPackageResponse> importedStaticPackages = new ArrayList<>();
+        boolean success = false;
+        try {
+            importedPackage = extractImportedExpertPackage(packageFile);
+            ExpertConfigResponse config = importedPackage.config();
+            validateImportedExpertConfig(config);
+
+            ExpertSummaryResponse expert = createExpert(new CreateExpertRequest(
+                    config.name(),
+                    config.description(),
+                    config.prompt(),
+                    config.expertType()
+            ));
+            expert = syncImportedExpertAlias(expert.id(), config.aliasName());
+
+            importedSkills.addAll(importSkillPackages(importedPackage));
+            importedStaticPackages.addAll(importStaticPackages(importedPackage));
+
+            updateBindings(expert.id(), new UpdateExpertBindingsRequest(
+                    importedSkills.stream().map(SkillPackageResponse::id).toList(),
+                    importedStaticPackages.stream().map(StaticPackageResponse::id).toList(),
+                    config.mcps() == null ? List.of() : config.mcps().stream()
+                            .map(mcp -> new McpBindingRequest(
+                                    normalizeOptionalText(mcp.bindingName()),
+                                    normalizeOptionalText(mcp.mcpUrl()),
+                                    mcp.toolWhitelist() == null ? List.of() : List.copyOf(mcp.toolWhitelist())
+                            ))
+                            .toList()
+            ));
+
+            ExpertReleaseTaskResponse releaseTask = null;
+            if (autoRelease) {
+                releaseTask = expertReleaseService.submitReleaseTask(expert.id());
+                scheduleImportedExpertAgentRefresh(expert.id(), releaseTask);
+            }
+            success = true;
+            return new ImportExpertPackageResponse(
+                    expert,
+                    List.copyOf(importedSkills),
+                    List.copyOf(importedStaticPackages),
+                    releaseTask
+            );
+        } finally {
+            if (importedPackage != null) {
+                sharedStorageService.deleteRecursively(importedPackage.workingDirectory());
+            }
+            if (!success) {
+                cleanupImportedPackages(importedSkills, importedStaticPackages);
+            }
+        }
     }
 
     @Override
@@ -545,11 +623,269 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         }
 
         existingExpert.setDescription(description);
+        existingExpert.setAliasName(name);
         existingExpert.setPrompt(prompt);
         existingExpert.setExpertType(expertType);
         existingExpert.setUpdatedAt(LocalDateTime.now());
         digitalExpertMapper.updateById(existingExpert);
         return new ForwardExpertResolution(toSummary(existingExpert), false);
+    }
+
+    private ImportedExpertPackage extractImportedExpertPackage(MultipartFile packageFile) {
+        if (packageFile == null || packageFile.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包不能为空");
+        }
+        String fileName = resolveImportedPackageFileName(packageFile.getOriginalFilename());
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".zip")) {
+            throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包必须为 zip 文件");
+        }
+        Path importRoot = sharedStorageService.resolveTemporaryDirectory("expert-package-import");
+        sharedStorageService.createDirectories(importRoot);
+        Path workingDirectory = importRoot.resolve(String.valueOf(System.nanoTime()));
+        sharedStorageService.recreateDirectory(workingDirectory);
+        Path archivePath = workingDirectory.resolve(fileName);
+        sharedStorageService.writeBytes(archivePath, readMultipartBytes(packageFile, "读取导入专家包失败"));
+        Path extractedDirectory = workingDirectory.resolve("extracted");
+        sharedStorageService.createDirectories(extractedDirectory);
+        zipArchiveService.extractZipToDirectory(archivePath, extractedDirectory, true);
+
+        Path configPath = extractedDirectory.resolve("expert-config.json");
+        if (!Files.isRegularFile(configPath)) {
+            throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包缺少 expert-config.json");
+        }
+        try {
+            ExpertConfigResponse config = JSON.parseObject(Files.readString(configPath), ExpertConfigResponse.class);
+            return new ImportedExpertPackage(
+                    workingDirectory,
+                    extractedDirectory,
+                    extractedDirectory.resolve("skills"),
+                    extractedDirectory.resolve("static_packages"),
+                    config
+            );
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "读取导入专家配置失败");
+        } catch (Exception ex) {
+            throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包配置格式非法");
+        }
+    }
+
+    private void validateImportedExpertConfig(ExpertConfigResponse config) {
+        if (config == null) {
+            throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包配置不能为空");
+        }
+        normalizeName(config.name());
+        resolveExpertType(config.expertType());
+    }
+
+    private ExpertSummaryResponse syncImportedExpertAlias(Long expertId, String aliasName) {
+        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        String normalizedAlias = normalizeOptionalText(aliasName);
+        if (normalizedAlias == null || Objects.equals(normalizedAlias, expert.getAliasName())) {
+            return toSummary(expert);
+        }
+        expert.setAliasName(normalizedAlias);
+        expert.setUpdatedAt(LocalDateTime.now());
+        digitalExpertMapper.updateById(expert);
+        return toSummary(expert);
+    }
+
+    private List<SkillPackageResponse> importSkillPackages(ImportedExpertPackage importedPackage) {
+        if (!Files.isDirectory(importedPackage.skillsDirectory())) {
+            throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包缺少 skills 目录");
+        }
+        Map<String, ExpertConfigSkillResponse> configByDirectoryName = new LinkedHashMap<>();
+        if (importedPackage.config().skills() != null) {
+            for (ExpertConfigSkillResponse skill : importedPackage.config().skills()) {
+                if (skill == null) {
+                    continue;
+                }
+                configByDirectoryName.putIfAbsent(resolveImportedSkillDirectoryName(skill.packageName()), skill);
+            }
+        }
+        try (var stream = Files.list(importedPackage.skillsDirectory())) {
+            List<Path> skillDirectories = stream
+                    .filter(Files::isDirectory)
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                    .toList();
+            if (skillDirectories.isEmpty()) {
+                throw BusinessException.badRequest(ErrorCode.EXPERT_PACKAGE_NOT_READY, "导入专家包缺少可用技能目录");
+            }
+            List<SkillPackageResponse> result = new ArrayList<>();
+            for (Path skillDirectory : skillDirectories) {
+                String directoryName = skillDirectory.getFileName().toString();
+                ExpertConfigSkillResponse configSkill = configByDirectoryName.get(directoryName);
+                String packageName = resolveImportedSkillPackageName(directoryName, configSkill);
+                byte[] archiveBytes = zipArchiveService.zipDirectory(skillDirectory);
+                result.add(skillPackageService.upload(new ImportedMultipartFile(
+                        "file",
+                        packageName,
+                        MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                        archiveBytes
+                )));
+            }
+            return result;
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "读取导入技能目录失败");
+        }
+    }
+
+    private List<StaticPackageResponse> importStaticPackages(ImportedExpertPackage importedPackage) {
+        if (!Files.isDirectory(importedPackage.staticPackagesDirectory())) {
+            return List.of();
+        }
+        Map<String, ExpertConfigStaticPackageResponse> configByPackageName = new LinkedHashMap<>();
+        if (importedPackage.config().staticPackages() != null) {
+            for (ExpertConfigStaticPackageResponse staticPackage : importedPackage.config().staticPackages()) {
+                if (staticPackage == null) {
+                    continue;
+                }
+                String packageName = normalizeOptionalText(staticPackage.packageName());
+                if (packageName != null) {
+                    configByPackageName.putIfAbsent(packageName, staticPackage);
+                }
+            }
+        }
+        try (var stream = Files.list(importedPackage.staticPackagesDirectory())) {
+            List<Path> packageFiles = stream
+                    .filter(Files::isRegularFile)
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                    .toList();
+            List<StaticPackageResponse> result = new ArrayList<>();
+            for (Path packageFile : packageFiles) {
+                String packageName = packageFile.getFileName().toString();
+                ExpertConfigStaticPackageResponse configStaticPackage = configByPackageName.get(packageName);
+                String name = configStaticPackage == null
+                        ? packageName
+                        : firstNonBlank(configStaticPackage.name(), packageName);
+                String staticType = configStaticPackage == null
+                        ? "IMPORTED"
+                        : firstNonBlank(configStaticPackage.staticType(), "IMPORTED");
+                String description = configStaticPackage == null
+                        ? packageName
+                        : firstNonBlank(configStaticPackage.description(), packageName);
+                result.add(staticPackageService.upload(
+                        name,
+                        staticType,
+                        description,
+                        new ImportedMultipartFile(
+                                "file",
+                                packageName,
+                                MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                                Files.readAllBytes(packageFile)
+                        )
+                ));
+            }
+            return result;
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, "读取导入静态资源包失败");
+        }
+    }
+
+    private void cleanupImportedPackages(List<SkillPackageResponse> importedSkills,
+                                         List<StaticPackageResponse> importedStaticPackages) {
+        for (SkillPackageResponse skill : importedSkills) {
+            if (skill == null || skill.id() == null) {
+                continue;
+            }
+            sharedStorageService.deleteRecursively(sharedStorageService.resolveSkillDirectory(skill.id()));
+        }
+        for (StaticPackageResponse staticPackage : importedStaticPackages) {
+            if (staticPackage == null || staticPackage.id() == null) {
+                continue;
+            }
+            sharedStorageService.deleteRecursively(sharedStorageService.resolveStaticPackageDirectory(staticPackage.id()));
+        }
+    }
+
+    private void scheduleImportedExpertAgentRefresh(Long expertId, ExpertReleaseTaskResponse releaseTask) {
+        if (expertId == null || releaseTask == null || releaseTask.taskId() == null) {
+            return;
+        }
+        /*
+         * 专家包导入不会经过训练任务链路，因此也不会触发 training post process。
+         * 这里单独在导入后的发布完成后补一次 Agent 刷新，但只依赖发布任务查询接口，
+         * 避免把导入逻辑和发布实现细节硬耦合在一起。
+         */
+        releaseTaskExecutor.execute(() -> awaitImportedReleaseAndRefreshAgents(expertId, releaseTask.taskId()));
+    }
+
+    private void awaitImportedReleaseAndRefreshAgents(Long expertId, String releaseTaskId) {
+        for (int attempt = 0; attempt < 300; attempt++) {
+            try {
+                ExpertReleaseTaskResponse task = expertReleaseService.getTask(expertId, releaseTaskId);
+                if (task == null || task.status() == null) {
+                    return;
+                }
+                if (ReleaseTaskStatus.SUCCEEDED.name().equals(task.status())) {
+                    agentDeploymentService.refreshActiveAgentsByExpert(expertId);
+                    log.info("导入专家发布完成后已刷新关联 AI Agent, expertId={}, releaseTaskId={}",
+                            expertId, releaseTaskId);
+                    return;
+                }
+                if (ReleaseTaskStatus.FAILED.name().equals(task.status())) {
+                    log.warn("导入专家发布失败，跳过关联 AI Agent 刷新, expertId={}, releaseTaskId={}",
+                            expertId, releaseTaskId);
+                    return;
+                }
+                Thread.sleep(1000L);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                log.warn("等待导入专家发布完成时被中断，跳过关联 AI Agent 刷新, expertId={}, releaseTaskId={}",
+                        expertId, releaseTaskId);
+                return;
+            } catch (Exception ex) {
+                log.warn("等待导入专家发布完成并刷新关联 AI Agent 失败, expertId={}, releaseTaskId={}",
+                        expertId, releaseTaskId, ex);
+                return;
+            }
+        }
+        log.warn("等待导入专家发布完成超时，未执行关联 AI Agent 刷新, expertId={}, releaseTaskId={}",
+                expertId, releaseTaskId);
+    }
+
+    private String resolveImportedPackageFileName(String originalFilename) {
+        if (originalFilename == null || originalFilename.isBlank()) {
+            return "expert-package.zip";
+        }
+        return Path.of(originalFilename).getFileName().toString();
+    }
+
+    private byte[] readMultipartBytes(MultipartFile file, String failureMessage) {
+        try {
+            return file.getBytes();
+        } catch (IOException ex) {
+            throw BusinessException.internal(ErrorCode.INTERNAL_ERROR, failureMessage);
+        }
+    }
+
+    private String resolveImportedSkillDirectoryName(String packageName) {
+        String normalized = normalizeOptionalText(packageName);
+        if (normalized == null) {
+            return "package";
+        }
+        int dotIndex = normalized.lastIndexOf('.');
+        String baseName = dotIndex > 0 ? normalized.substring(0, dotIndex) : normalized;
+        String directoryName = baseName.trim()
+                .replaceAll("[^\\p{L}\\p{N}._-]", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^[._-]+", "")
+                .replaceAll("[._-]+$", "");
+        return directoryName.isBlank() ? "package" : directoryName;
+    }
+
+    private String resolveImportedSkillPackageName(String directoryName, ExpertConfigSkillResponse configSkill) {
+        String configuredPackageName = configSkill == null ? null : normalizeOptionalText(configSkill.packageName());
+        if (configuredPackageName != null) {
+            return configuredPackageName.toLowerCase(Locale.ROOT).endsWith(".zip")
+                    ? configuredPackageName
+                    : configuredPackageName + ".zip";
+        }
+        return directoryName + ".zip";
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        String normalized = normalizeOptionalText(value);
+        return normalized == null ? fallback : normalized;
     }
 
     private DigitalExpertEntity findExpertByName(String name) {
@@ -616,6 +952,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         return new ExpertSummaryResponse(
                 entity.getId(),
                 entity.getName(),
+                entity.getAliasName(),
                 entity.getDescription(),
                 entity.getExpertType(),
                 entity.getStatus(),
@@ -795,5 +1132,74 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             ExpertSummaryResponse expert,
             boolean created
     ) {
+    }
+
+    private record ImportedExpertPackage(
+            Path workingDirectory,
+            Path extractedDirectory,
+            Path skillsDirectory,
+            Path staticPackagesDirectory,
+            ExpertConfigResponse config
+    ) {
+    }
+
+    private static final class ImportedMultipartFile implements MultipartFile {
+
+        private final String name;
+        private final String originalFilename;
+        private final String contentType;
+        private final byte[] content;
+
+        private ImportedMultipartFile(String name, String originalFilename, String contentType, byte[] content) {
+            this.name = name;
+            this.originalFilename = originalFilename;
+            this.contentType = contentType;
+            this.content = content == null ? new byte[0] : content.clone();
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return content.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return content.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return content.clone();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(content);
+        }
+
+        @Override
+        public void transferTo(File dest) throws IOException {
+            Files.write(dest.toPath(), content);
+        }
+
+        @Override
+        public void transferTo(Path dest) throws IOException, IllegalStateException {
+            Files.write(dest, content);
+        }
     }
 }

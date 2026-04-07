@@ -6,6 +6,7 @@ import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
 import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
@@ -29,6 +30,8 @@ public interface DigitalExpertService {
     ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles);
 
     ForwardTrainingSubmitResponse submitForwardTraining(SubmitForwardTrainingRequest request);
+
+    ImportExpertPackageResponse importExpertPackage(MultipartFile packageFile, boolean autoRelease);
 
     ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request);
 

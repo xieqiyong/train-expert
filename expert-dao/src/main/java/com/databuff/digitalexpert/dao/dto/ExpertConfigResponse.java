@@ -5,6 +5,7 @@ import java.util.List;
 public record ExpertConfigResponse(
         Long expertId,
         String name,
+        String aliasName,
         String description,
         String prompt,
         String expertType,

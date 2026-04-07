@@ -37,6 +37,7 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class AiAgentServiceImpl implements AiAgentService {
@@ -323,7 +324,7 @@ public class AiAgentServiceImpl implements AiAgentService {
         return new PlatformServiceResponse(
                 entity.getId(),
                 entity.getName(),
-                entity.getDescription(),
+                StringUtils.hasText(entity.getAliasName()) ? entity.getAliasName() : entity.getDescription(),
                 "SERVICE"
         );
     }

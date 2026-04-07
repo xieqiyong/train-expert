@@ -16,6 +16,7 @@ import com.databuff.digitalexpert.dao.dto.ExpertTaskListQueryRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTaskRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
+import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
@@ -217,6 +218,13 @@ public class DigitalExpertController {
                     "输出专家压缩包失败"
             );
         }
+    }
+
+    @PostMapping(value = "/package/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ImportExpertPackageResponse> importPackage(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease) {
+        return ApiResponse.success(digitalExpertService.importExpertPackage(file, autoRelease));
     }
 
     @PostMapping("/status/change")

@@ -32,7 +32,13 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
 
         DigitalExpertEntity existingExpert = findByName(normalizedServiceName);
         if (existingExpert != null) {
-            syncAppName(existingExpert.getId(), existingExpert.getAppName(), originalServiceName);
+            syncAutoExpertFields(
+                    existingExpert.getId(),
+                    existingExpert.getAppName(),
+                    existingExpert.getAliasName(),
+                    originalServiceName,
+                    normalizedServiceName
+            );
             return new ResolvedExpert(existingExpert.getId(), existingExpert.getName(), false);
         }
 
@@ -40,7 +46,7 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
             ExpertSummaryResponse expert = digitalExpertService.createExpert(
                     new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null, ExpertType.SERVICE.name())
             );
-            syncAppName(expert.id(), null, originalServiceName);
+            syncAutoExpertFields(expert.id(), null, expert.aliasName(), originalServiceName, normalizedServiceName);
             return new ResolvedExpert(expert.id(), expert.name(), true);
         } catch (BusinessException ex) {
             if (ex.getErrorCode() != ErrorCode.DUPLICATE_RESOURCE) {
@@ -48,7 +54,13 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
             }
             DigitalExpertEntity concurrentCreatedExpert = findByName(normalizedServiceName);
             if (concurrentCreatedExpert != null) {
-                syncAppName(concurrentCreatedExpert.getId(), concurrentCreatedExpert.getAppName(), originalServiceName);
+                syncAutoExpertFields(
+                        concurrentCreatedExpert.getId(),
+                        concurrentCreatedExpert.getAppName(),
+                        concurrentCreatedExpert.getAliasName(),
+                        originalServiceName,
+                        normalizedServiceName
+                );
                 return new ResolvedExpert(concurrentCreatedExpert.getId(), concurrentCreatedExpert.getName(), false);
             }
             throw ex;
@@ -76,13 +88,32 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
         return StringUtils.hasText(rawServiceName) ? rawServiceName : null;
     }
 
-    private void syncAppName(Long expertId, String currentAppName, String rawServiceName) {
-        if (expertId == null || rawServiceName == null || Objects.equals(currentAppName, rawServiceName)) {
+    private void syncAutoExpertFields(
+            Long expertId,
+            String currentAppName,
+            String currentAliasName,
+            String rawServiceName,
+            String normalizedServiceName
+    ) {
+        if (expertId == null) {
             return;
         }
-        digitalExpertMapper.update(null, new LambdaUpdateWrapper<DigitalExpertEntity>()
+        boolean shouldSyncAppName = rawServiceName != null && !Objects.equals(currentAppName, rawServiceName);
+        boolean shouldSyncAliasName = !StringUtils.hasText(currentAliasName)
+                && StringUtils.hasText(normalizedServiceName);
+        if (!shouldSyncAppName && !shouldSyncAliasName) {
+            return;
+        }
+
+        LambdaUpdateWrapper<DigitalExpertEntity> updateWrapper = new LambdaUpdateWrapper<DigitalExpertEntity>()
                 .eq(DigitalExpertEntity::getId, expertId)
-                .set(DigitalExpertEntity::getAppName, rawServiceName)
-                .set(DigitalExpertEntity::getUpdatedAt, LocalDateTime.now()));
+                .set(DigitalExpertEntity::getUpdatedAt, LocalDateTime.now());
+        if (shouldSyncAppName) {
+            updateWrapper.set(DigitalExpertEntity::getAppName, rawServiceName);
+        }
+        if (shouldSyncAliasName) {
+            updateWrapper.set(DigitalExpertEntity::getAliasName, normalizedServiceName);
+        }
+        digitalExpertMapper.update(null, updateWrapper);
     }
 }

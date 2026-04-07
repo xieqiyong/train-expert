@@ -14,6 +14,8 @@ public class DigitalExpertEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String name;
+    @TableField("alias_name")
+    private String aliasName;
     @TableField("app_name")
     private String appName;
     private String description;

@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS `de_digital_expert` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(128) NOT NULL COMMENT '专家名称',
+  `alias_name` varchar(128) DEFAULT NULL COMMENT '专家别名',
   `app_name` varchar(512) DEFAULT NULL COMMENT 'app_info 原始服务名',
   `description` varchar(512) DEFAULT NULL COMMENT '专家描述',
   `prompt` varchar(512) DEFAULT NULL COMMENT '专家提示词',

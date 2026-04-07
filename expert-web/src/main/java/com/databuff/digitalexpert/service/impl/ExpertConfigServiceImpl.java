@@ -59,6 +59,7 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
         return new ExpertConfigResponse(
                 expert.getId(),
                 expert.getName(),
+                expert.getAliasName(),
                 expert.getDescription(),
                 expert.getPrompt(),
                 expert.getExpertType(),
