@@ -17,18 +17,18 @@ public class BusinessException extends RuntimeException {
     }
 
     public static BusinessException badRequest(ErrorCode errorCode, String detail) {
-        return new BusinessException(errorCode, detail, HttpStatus.BAD_REQUEST);
+        return new BusinessException(errorCode, detail, HttpStatus.OK);
     }
 
     public static BusinessException notFound(ErrorCode errorCode, String detail) {
-        return new BusinessException(errorCode, detail, HttpStatus.NOT_FOUND);
+        return new BusinessException(errorCode, detail, HttpStatus.OK);
     }
 
     public static BusinessException conflict(ErrorCode errorCode, String detail) {
-        return new BusinessException(errorCode, detail, HttpStatus.CONFLICT);
+        return new BusinessException(errorCode, detail, HttpStatus.OK);
     }
 
     public static BusinessException internal(ErrorCode errorCode, String detail) {
-        return new BusinessException(errorCode, detail, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new BusinessException(errorCode, detail, HttpStatus.OK);
     }
 }

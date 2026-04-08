@@ -1,5 +1,7 @@
 package com.databuff.digitalexpert.service.impl;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.databuff.digitalexpert.common.BusinessException;
@@ -26,7 +28,9 @@ import com.databuff.digitalexpert.dao.mapper.AiAgentMapper;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
 import com.databuff.digitalexpert.service.AgentDeploymentService;
+import com.databuff.digitalexpert.service.AgentRuntimeConfigService;
 import com.databuff.digitalexpert.service.AiAgentService;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -54,20 +58,26 @@ public class AiAgentServiceImpl implements AiAgentService {
     private DigitalExpertMapper digitalExpertMapper;
     @Autowired
     private AgentDeploymentService agentDeploymentService;
+    @Autowired
+    private AgentRuntimeConfigService agentRuntimeConfigService;
 
     @Override
     @Transactional
     public AgentSummaryResponse createAgent(CreateAgentRequest request) {
         String name = normalizeName(request.name());
         String path = normalizeAgentPath(request.path());
+        String rootPath = normalizeRootPath(request.rootPath(), path);
         ensureAgentNameUnique(name);
         ensureAgentPathUnique(path);
+        ensureAgentRootPathUnique(rootPath);
 
         LocalDateTime now = LocalDateTime.now();
         AiAgentEntity entity = new AiAgentEntity();
         entity.setAgentName(name);
         entity.setDescription(normalizeOptionalText(request.description()));
         entity.setAgentPath(path);
+        entity.setRootPath(rootPath);
+        entity.setOpencodeConfigJson(normalizeOpencodeConfigJson(request.opencodeConfigJson()));
         entity.setStatus(AgentStatus.DRAFT.name());
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
@@ -119,6 +129,8 @@ public class AiAgentServiceImpl implements AiAgentService {
                 agent.getAgentName(),
                 agent.getDescription(),
                 agent.getAgentPath(),
+                resolveAgentRootPath(agent),
+                agent.getOpencodeConfigJson(),
                 agent.getStatus(),
                 loadDirectSkills(agentId),
                 loadExperts(agentId),
@@ -167,6 +179,7 @@ public class AiAgentServiceImpl implements AiAgentService {
                 .eq(AiAgentEntity::getId, agentId)
                 .set(AiAgentEntity::getUpdatedAt, now));
         agentDeploymentService.refreshAgent(agent.getId());
+        agentRuntimeConfigService.refreshAgentConfig(agent.getId());
         return new AgentBindingUpdateResponse(agentId, true);
     }
 
@@ -217,6 +230,7 @@ public class AiAgentServiceImpl implements AiAgentService {
             agent.setUpdatedAt(now);
             aiAgentMapper.updateById(agent);
             agentDeploymentService.refreshAgent(agentId);
+            agentRuntimeConfigService.refreshAgentConfig(agentId);
             results.add(toSummary(agent));
         }
         return results;
@@ -301,12 +315,24 @@ public class AiAgentServiceImpl implements AiAgentService {
         }
     }
 
+    private void ensureAgentRootPathUnique(String rootPath) {
+        if (!StringUtils.hasText(rootPath)) {
+            return;
+        }
+        Long count = aiAgentMapper.selectCount(new LambdaQueryWrapper<AiAgentEntity>()
+                .eq(AiAgentEntity::getRootPath, rootPath));
+        if (count != null && count > 0) {
+            throw BusinessException.conflict(ErrorCode.DUPLICATE_RESOURCE, "AI Agent root path already exists: " + rootPath);
+        }
+    }
+
     private AgentSummaryResponse toSummary(AiAgentEntity entity) {
         return new AgentSummaryResponse(
                 entity.getId(),
                 entity.getAgentName(),
                 entity.getDescription(),
                 entity.getAgentPath(),
+                resolveAgentRootPath(entity),
                 entity.getStatus()
         );
     }
@@ -368,10 +394,7 @@ public class AiAgentServiceImpl implements AiAgentService {
         if (path == null) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent path cannot be empty");
         }
-        String normalized = path.trim().replace('\\', '/');
-        while (normalized.length() > 1 && normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
+        String normalized = normalizePathValue(path);
         if (normalized.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent path cannot be empty");
         }
@@ -383,6 +406,76 @@ public class AiAgentServiceImpl implements AiAgentService {
 
     private boolean isAbsolutePath(String path) {
         return path.startsWith("/") || path.matches("^[A-Za-z]:/.*") || path.startsWith("//");
+    }
+
+    private String normalizeRootPath(String rootPath, String agentPath) {
+        String normalizedRoot = normalizeOptionalPath(rootPath);
+        if (!StringUtils.hasText(normalizedRoot)) {
+            Path normalizedAgentPath = Path.of(agentPath).toAbsolutePath().normalize();
+            Path parent = normalizedAgentPath.getParent();
+            if (parent == null) {
+                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent root path cannot be derived from agent path");
+            }
+            normalizedRoot = parent.toString().replace('\\', '/');
+        }
+        Path normalizedRootPath = Path.of(normalizedRoot).toAbsolutePath().normalize();
+        Path normalizedAgentPath = Path.of(agentPath).toAbsolutePath().normalize();
+        if (!normalizedAgentPath.startsWith(normalizedRootPath)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent path must stay inside root path");
+        }
+        return normalizedRootPath.toString().replace('\\', '/');
+    }
+
+    private String normalizeOptionalPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+        String normalized = normalizePathValue(path);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        if (!isAbsolutePath(normalized)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent root path must be absolute");
+        }
+        return normalized;
+    }
+
+    private String normalizePathValue(String value) {
+        String normalized = value.trim().replace('\\', '/');
+        while (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String normalizeOpencodeConfigJson(String opencodeConfigJson) {
+        String normalized = normalizeOptionalText(opencodeConfigJson);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        try {
+            Object parsed = JSON.parse(normalized);
+            if (!(parsed instanceof JSONObject jsonObject)) {
+                throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent OpenCode 基础配置必须是 JSON 对象");
+            }
+            return JSON.toJSONString(jsonObject);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "AI Agent OpenCode 基础配置 JSON 非法");
+        }
+    }
+
+    private String resolveAgentRootPath(AiAgentEntity entity) {
+        if (StringUtils.hasText(entity.getRootPath())) {
+            return entity.getRootPath();
+        }
+        if (!StringUtils.hasText(entity.getAgentPath())) {
+            return null;
+        }
+        Path agentPath = Path.of(entity.getAgentPath()).toAbsolutePath().normalize();
+        Path parent = agentPath.getParent();
+        return parent == null ? null : parent.toString().replace('\\', '/');
     }
 
     private String normalizeOptionalText(String value) {

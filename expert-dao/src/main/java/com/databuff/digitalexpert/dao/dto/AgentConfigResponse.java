@@ -7,6 +7,8 @@ public record AgentConfigResponse(
         String name,
         String description,
         String path,
+        String rootPath,
+        String opencodeConfigJson,
         String status,
         List<AgentSkillBindingResponse> directSkills,
         List<AgentExpertBindingResponse> experts,

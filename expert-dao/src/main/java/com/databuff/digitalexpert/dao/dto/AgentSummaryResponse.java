@@ -5,6 +5,7 @@ public record AgentSummaryResponse(
         String name,
         String description,
         String path,
+        String rootPath,
         String status
 ) {
 }

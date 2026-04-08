@@ -18,6 +18,10 @@ public class AiAgentEntity {
     private String description;
     @TableField("agent_path")
     private String agentPath;
+    @TableField("root_path")
+    private String rootPath;
+    @TableField("opencode_config_json")
+    private String opencodeConfigJson;
     private String status;
     @TableField("auto_binding")
     private Integer autoBinding;

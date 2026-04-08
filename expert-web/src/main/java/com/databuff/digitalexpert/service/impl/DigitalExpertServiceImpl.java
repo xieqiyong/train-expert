@@ -52,6 +52,7 @@ import com.databuff.digitalexpert.dao.mapper.ExpertAgentBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
 import com.databuff.digitalexpert.service.DigitalExpertService;
 import com.databuff.digitalexpert.service.AgentDeploymentService;
+import com.databuff.digitalexpert.service.AgentRuntimeConfigService;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.ExpertTrainingService;
@@ -121,6 +122,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     private ExpertTrainingService expertTrainingService;
     @Autowired
     private AgentDeploymentService agentDeploymentService;
+    @Autowired
+    private AgentRuntimeConfigService agentRuntimeConfigService;
     @Autowired
     private SharedStorageService sharedStorageService;
     @Autowired
@@ -458,6 +461,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         digitalExpertMapper.update(null, new LambdaUpdateWrapper<DigitalExpertEntity>()
                 .eq(DigitalExpertEntity::getId, expertId)
                 .set(DigitalExpertEntity::getUpdatedAt, now));
+        agentRuntimeConfigService.refreshAgentsByExpert(expertId);
         return new ExpertBindingUpdateResponse(expertId, true);
     }
 
@@ -818,6 +822,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 }
                 if (ReleaseTaskStatus.SUCCEEDED.name().equals(task.status())) {
                     agentDeploymentService.refreshActiveAgentsByExpert(expertId);
+                    agentRuntimeConfigService.refreshAgentsByExpert(expertId);
                     log.info("导入专家发布完成后已刷新关联 AI Agent, expertId={}, releaseTaskId={}",
                             expertId, releaseTaskId);
                     return;
