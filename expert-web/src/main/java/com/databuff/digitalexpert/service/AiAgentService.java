@@ -21,6 +21,8 @@ public interface AiAgentService {
 
     AgentBindingUpdateResponse updateBindings(Long agentId, UpdateAgentBindingsRequest request);
 
+    AgentBindingUpdateResponse updateExpertBindings(Long agentId, List<Long> expertIds);
+
     List<PlatformServiceResponse> listPlatformServices();
 
     List<AgentSummaryResponse> changeStatus(List<Long> agentIds, AgentStatusOperation operation);

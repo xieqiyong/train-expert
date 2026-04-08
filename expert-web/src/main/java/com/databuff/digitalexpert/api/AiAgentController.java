@@ -9,6 +9,7 @@ import com.databuff.digitalexpert.dao.dto.ChangeAgentStatusRequest;
 import com.databuff.digitalexpert.dao.dto.CreateAgentRequest;
 import com.databuff.digitalexpert.dao.dto.PlatformServiceResponse;
 import com.databuff.digitalexpert.dao.dto.UpdateAgentBindingsCommand;
+import com.databuff.digitalexpert.dao.dto.UpdateAgentExpertsCommand;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
 import com.databuff.digitalexpert.service.AiAgentService;
 import jakarta.validation.Valid;
@@ -56,6 +57,12 @@ public class AiAgentController {
     public ApiResponse<AgentBindingUpdateResponse> updateBindings(
             @Valid @RequestBody UpdateAgentBindingsCommand request) {
         return ApiResponse.success(aiAgentService.updateBindings(request.agentId(), request.toBindingsRequest()));
+    }
+
+    @PostMapping("/expert-bindings/update")
+    public ApiResponse<AgentBindingUpdateResponse> updateExpertBindings(
+            @Valid @RequestBody UpdateAgentExpertsCommand request) {
+        return ApiResponse.success(aiAgentService.updateExpertBindings(request.agentId(), request.expertIds()));
     }
 
     @PostMapping("/status/change")

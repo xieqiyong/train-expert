@@ -144,7 +144,27 @@ public class AiAgentServiceImpl implements AiAgentService {
         AiAgentEntity agent = requireAgent(agentId);
         List<Long> skillIds = deduplicateIds(request == null ? null : request.skills());
         List<Long> expertIds = deduplicateIds(request == null ? null : request.experts());
+        return updateBindingsInternal(agent, skillIds, expertIds);
+    }
 
+    @Override
+    @Transactional
+    public AgentBindingUpdateResponse updateExpertBindings(Long agentId, List<Long> expertIds) {
+        AiAgentEntity agent = requireAgent(agentId);
+        // “只绑定专家”接口需要保留 Agent 已有的直接技能绑定，避免覆盖 skills。
+        List<Long> skillIds = agentSkillBindingMapper.selectList(
+                        new LambdaQueryWrapper<AgentSkillBindingEntity>()
+                                .eq(AgentSkillBindingEntity::getAgentId, agentId)
+                                .orderByAsc(AgentSkillBindingEntity::getSortNo, AgentSkillBindingEntity::getId)
+                ).stream()
+                .map(AgentSkillBindingEntity::getSkillId)
+                .toList();
+        return updateBindingsInternal(agent, skillIds, deduplicateIds(expertIds));
+    }
+
+    private AgentBindingUpdateResponse updateBindingsInternal(AiAgentEntity agent,
+                                                              List<Long> skillIds,
+                                                              List<Long> expertIds) {
         for (Long skillId : skillIds) {
             requireSkillPackage(skillId);
         }
@@ -153,14 +173,14 @@ public class AiAgentServiceImpl implements AiAgentService {
         }
 
         agentSkillBindingMapper.delete(new LambdaQueryWrapper<AgentSkillBindingEntity>()
-                .eq(AgentSkillBindingEntity::getAgentId, agentId));
+                .eq(AgentSkillBindingEntity::getAgentId, agent.getId()));
         agentExpertBindingMapper.delete(new LambdaQueryWrapper<AgentExpertBindingEntity>()
-                .eq(AgentExpertBindingEntity::getAgentId, agentId));
+                .eq(AgentExpertBindingEntity::getAgentId, agent.getId()));
 
         LocalDateTime now = LocalDateTime.now();
         for (int i = 0; i < skillIds.size(); i++) {
             AgentSkillBindingEntity entity = new AgentSkillBindingEntity();
-            entity.setAgentId(agentId);
+            entity.setAgentId(agent.getId());
             entity.setSkillId(skillIds.get(i));
             entity.setSortNo(i + 1);
             entity.setCreatedAt(now);
@@ -168,7 +188,7 @@ public class AiAgentServiceImpl implements AiAgentService {
         }
         for (int i = 0; i < expertIds.size(); i++) {
             AgentExpertBindingEntity entity = new AgentExpertBindingEntity();
-            entity.setAgentId(agentId);
+            entity.setAgentId(agent.getId());
             entity.setExpertId(expertIds.get(i));
             entity.setSortNo(i + 1);
             entity.setCreatedAt(now);
@@ -176,11 +196,11 @@ public class AiAgentServiceImpl implements AiAgentService {
         }
 
         aiAgentMapper.update(null, new LambdaUpdateWrapper<AiAgentEntity>()
-                .eq(AiAgentEntity::getId, agentId)
+                .eq(AiAgentEntity::getId, agent.getId())
                 .set(AiAgentEntity::getUpdatedAt, now));
         agentDeploymentService.refreshAgent(agent.getId());
         agentRuntimeConfigService.refreshAgentConfig(agent.getId());
-        return new AgentBindingUpdateResponse(agentId, true);
+        return new AgentBindingUpdateResponse(agent.getId(), true);
     }
 
     @Override
