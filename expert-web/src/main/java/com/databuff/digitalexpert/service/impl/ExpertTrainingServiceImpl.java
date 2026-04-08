@@ -308,7 +308,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private void handleRunningTask(ExpertTrainingTaskEntity task) {
         int pollCount = increasePollCount(task);
         long elapsedMs = calculateElapsedMs(resolveRunningStageStartTime(task));
-        long timeoutMs = properties.getTraining().getSessionTimeoutMs();
+        long timeoutMs = properties.getTraining().getSessionTimeout().toMillis();
         if (elapsedMs >= timeoutMs) {
             markTaskTimeout(task.getTaskId(), "训练会话轮询超时");
             return;
@@ -335,13 +335,13 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         task.setUpdatedAt(now);
         expertTrainingTaskMapper.updateById(task);
         log.info("训练会话已结束，进入产物缓冲期, taskId={}, sessionId={}, gracePeriodMs={}",
-                task.getTaskId(), task.getSessionId(), properties.getTraining().getArtifactGracePeriodMs());
+                task.getTaskId(), task.getSessionId(), properties.getTraining().getArtifactGracePeriod().toMillis());
     }
 
     private void handleVerifyingArtifacts(ExpertTrainingTaskEntity task) {
         int pollCount = increasePollCount(task);
         long elapsedMs = calculateElapsedMs(task.getUpdatedAt());
-        long gracePeriodMs = properties.getTraining().getArtifactGracePeriodMs();
+        long gracePeriodMs = properties.getTraining().getArtifactGracePeriod().toMillis();
         if (elapsedMs < gracePeriodMs) {
             if (shouldLogProgress(pollCount, 6)) {
                 long remainingMs = Math.max(gracePeriodMs - elapsedMs, 0L);
@@ -388,7 +388,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private void handleReleasingTask(ExpertTrainingTaskEntity task) {
         int pollCount = increasePollCount(task);
         long elapsedMs = calculateElapsedMs(task.getUpdatedAt());
-        long timeoutMs = properties.getTraining().getReleaseTimeoutMs();
+        long timeoutMs = properties.getTraining().getReleaseTimeout().toMillis();
         if (elapsedMs >= timeoutMs) {
             markTaskTimeout(task.getTaskId(), "发布任务等待超时");
             return;

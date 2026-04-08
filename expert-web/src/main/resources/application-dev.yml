@@ -50,9 +50,9 @@ digital-expert:
     output-root: E:\ai-work\app\agent/output/
     spec-skill-path: E:\ai-work\databuff-digital-expert\expert-web\src\main\resources\skills\root-skills-creator\
     poll-interval-ms: 5000
-    session-timeout-ms: 1800000
-    artifact-grace-period-ms: 120000
-    release-timeout-ms: 1800000
+    session-timeout: 30m
+    artifact-grace-period: 2m
+    release-timeout: 30m
   proxy:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300

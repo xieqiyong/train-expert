@@ -3,6 +3,7 @@ package com.databuff.digitalexpert.config;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -114,21 +115,18 @@ public class ExpertProperties {
          * 训练会话最大等待时间，单位毫秒。
          * 提交 chat 后，轮询会话结束接口的最长等待时间。
          */
-        @Min(1000)
-        private int sessionTimeoutMs = 60 * 60 * 1000;
+        private Duration sessionTimeout = Duration.ofMinutes(60);
 
         /**
          * 会话结束后的产物缓冲时间，单位毫秒。
          * 在这段时间内只等待产物落盘，不做后续导入。
          */
-        @Min(1000)
-        private int artifactGracePeriodMs = 2 * 60 * 1000;
+        private Duration artifactGracePeriod = Duration.ofMinutes(2);
 
         /**
          * 发布阶段最大等待时间，单位毫秒。
          */
-        @Min(1000)
-        private int releaseTimeoutMs = 30 * 60 * 1000;
+        private Duration releaseTimeout = Duration.ofMinutes(30);
     }
 
     @Getter

@@ -208,6 +208,7 @@ public class AiAgentServiceImpl implements AiAgentService {
         List<PlatformServiceResponse> responses = new ArrayList<>();
 
         List<AiAgentEntity> agents = aiAgentMapper.selectList(new LambdaQueryWrapper<AiAgentEntity>()
+                .eq(AiAgentEntity::getStatus, AgentStatus.ACTIVE.name())
                 .orderByDesc(AiAgentEntity::getId));
         for (AiAgentEntity agent : agents) {
             responses.add(toPlatformService(agent));

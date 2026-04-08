@@ -53,9 +53,9 @@ digital-expert:
     output-root: /app/agent/output/
     spec-skill-path: /app/skills/root-skills-creator/
     poll-interval-ms: 5000
-    session-timeout-ms: 1800000
-    artifact-grace-period-ms: 120000
-    release-timeout-ms: 1800000
+    session-timeout: 300m
+    artifact-grace-period: 10m
+    release-timeout: 30m
   proxy:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
