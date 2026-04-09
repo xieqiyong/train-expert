@@ -24,6 +24,7 @@ import com.databuff.digitalexpert.dao.dto.CreateExpertTrainingTaskRequest;
 import com.databuff.digitalexpert.dao.dto.SkillPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
 import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
+import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
@@ -35,6 +36,7 @@ import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertAgentBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
+import com.databuff.digitalexpert.dao.enums.ExpertSource;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
@@ -137,6 +139,12 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Override
     @Transactional
     public ExpertSummaryResponse createExpert(CreateExpertRequest request) {
+        return createExpert(request, ExpertSource.CREATED);
+    }
+
+    @Override
+    @Transactional
+    public ExpertSummaryResponse createExpert(CreateExpertRequest request, ExpertSource expertSource) {
         String name = normalizeName(request.name());
         ensureExpertNameUnique(name);
         LocalDateTime now = LocalDateTime.now();
@@ -146,6 +154,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         entity.setDescription(normalizeOptionalText(request.description()));
         entity.setPrompt(normalizeOptionalText(request.prompt()));
         entity.setExpertType(resolveExpertType(request.expertType()));
+        entity.setExpertSource(resolveExpertSource(expertSource));
         entity.setStatus(ExpertStatus.DRAFT.name());
         entity.setReleaseVersion(0);
         entity.setTrainingVersion(0);
@@ -405,8 +414,45 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
+    public ExpertSummaryResponse updateExpert(UpdateExpertCommand request) {
+        if (request == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家修改请求不能为空");
+        }
+        DigitalExpertEntity expert = expertConfigService.requireExpert(request.expertId());
+        ensureExpertEditable(expert);
+        if (hasActiveReleaseTask(expert.getId())) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
+                    "专家存在进行中的发布任务: " + expert.getId()
+            );
+        }
+        if (hasActiveTrainingTask(expert.getId())) {
+            throw BusinessException.conflict(
+                    ErrorCode.ACTIVE_TRAINING_TASK_EXISTS,
+                    "专家存在进行中的训练任务: " + expert.getId()
+            );
+        }
+
+        String name = normalizeName(request.name());
+        String aliasName = normalizeAliasName(request.aliasName(), name);
+        if (!name.equals(expert.getName())) {
+            ensureExpertNameUnique(name);
+        }
+        expert.setName(name);
+        expert.setAliasName(aliasName);
+        expert.setDescription(normalizeOptionalText(request.description()));
+        expert.setPrompt(normalizeOptionalText(request.prompt()));
+        expert.setExpertType(resolveExpertType(request.expertType()));
+        expert.setUpdatedAt(LocalDateTime.now());
+        digitalExpertMapper.updateById(expert);
+        return toSummary(expert);
+    }
+
+    @Override
+    @Transactional
     public ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        ensureExpertEditable(expert);
         if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
             throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "专家已被禁用: " + expertId);
         }
@@ -469,6 +515,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Transactional
     public boolean deleteExpert(Long expertId) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        ensureExpertEditable(expert);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
@@ -537,6 +584,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     private ExpertSummaryResponse disableExpertInternal(Long expertId, ExpertStatus expertStatus) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        ensureExpertEditable(expert);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
@@ -622,7 +670,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                     description,
                     prompt,
                     expertType
-            ));
+            ), ExpertSource.CREATED);
             return new ForwardExpertResolution(createdExpert, true);
         }
 
@@ -949,6 +997,25 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    private String normalizeAliasName(String aliasName, String fallbackName) {
+        String normalizedAliasName = normalizeOptionalText(aliasName);
+        return normalizedAliasName == null ? fallbackName : normalizedAliasName;
+    }
+
+    private void ensureExpertEditable(DigitalExpertEntity expert) {
+        if (expert != null && ExpertSource.CREATED.name().equals(expert.getExpertSource())) {
+            return;
+        }
+        throw BusinessException.conflict(
+                ErrorCode.EXPERT_NOT_EDITABLE,
+                "当前专家不是手工创建类型，暂不允许修改或删除"
+        );
+    }
+
+    private String resolveExpertSource(ExpertSource expertSource) {
+        return expertSource == null ? ExpertSource.CREATED.name() : expertSource.name();
+    }
+
     private ExpertSummaryResponse toSummary(DigitalExpertEntity entity) {
         return toSummary(entity, false);
     }
@@ -960,6 +1027,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 entity.getAliasName(),
                 entity.getDescription(),
                 entity.getExpertType(),
+                entity.getExpertSource(),
                 entity.getStatus(),
                 trainingInProgress
         );

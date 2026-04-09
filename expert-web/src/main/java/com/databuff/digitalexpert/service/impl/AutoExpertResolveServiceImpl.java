@@ -7,6 +7,7 @@ import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
+import com.databuff.digitalexpert.dao.enums.ExpertSource;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.service.AutoExpertResolveService;
@@ -37,16 +38,18 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
                     existingExpert.getAppName(),
                     existingExpert.getAliasName(),
                     originalServiceName,
-                    normalizedServiceName
+                    normalizedServiceName,
+                    false
             );
             return new ResolvedExpert(existingExpert.getId(), existingExpert.getName(), false);
         }
 
         try {
             ExpertSummaryResponse expert = digitalExpertService.createExpert(
-                    new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null, ExpertType.SERVICE.name())
+                    new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null, ExpertType.SERVICE.name()),
+                    ExpertSource.GENERATED
             );
-            syncAutoExpertFields(expert.id(), null, expert.aliasName(), originalServiceName, normalizedServiceName);
+            syncAutoExpertFields(expert.id(), null, expert.aliasName(), originalServiceName, normalizedServiceName, true);
             return new ResolvedExpert(expert.id(), expert.name(), true);
         } catch (BusinessException ex) {
             if (ex.getErrorCode() != ErrorCode.DUPLICATE_RESOURCE) {
@@ -59,7 +62,8 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
                         concurrentCreatedExpert.getAppName(),
                         concurrentCreatedExpert.getAliasName(),
                         originalServiceName,
-                        normalizedServiceName
+                        normalizedServiceName,
+                        false
                 );
                 return new ResolvedExpert(concurrentCreatedExpert.getId(), concurrentCreatedExpert.getName(), false);
             }
@@ -93,7 +97,8 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
             String currentAppName,
             String currentAliasName,
             String rawServiceName,
-            String normalizedServiceName
+            String normalizedServiceName,
+            boolean forceGeneratedSource
     ) {
         if (expertId == null) {
             return;
@@ -101,7 +106,8 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
         boolean shouldSyncAppName = rawServiceName != null && !Objects.equals(currentAppName, rawServiceName);
         boolean shouldSyncAliasName = !StringUtils.hasText(currentAliasName)
                 && StringUtils.hasText(normalizedServiceName);
-        if (!shouldSyncAppName && !shouldSyncAliasName) {
+        boolean shouldSyncGeneratedSource = forceGeneratedSource;
+        if (!shouldSyncAppName && !shouldSyncAliasName && !shouldSyncGeneratedSource) {
             return;
         }
 
@@ -113,6 +119,9 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
         }
         if (shouldSyncAliasName) {
             updateWrapper.set(DigitalExpertEntity::getAliasName, normalizedServiceName);
+        }
+        if (shouldSyncGeneratedSource) {
+            updateWrapper.set(DigitalExpertEntity::getExpertSource, ExpertSource.GENERATED.name());
         }
         digitalExpertMapper.update(null, updateWrapper);
     }

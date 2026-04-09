@@ -21,6 +21,8 @@ public class DigitalExpertEntity {
     private String description;
     private String prompt;
     private String expertType;
+    @TableField("expert_source")
+    private String expertSource;
     private String status;
     private String sharedPath;
     private String configJsonPath;

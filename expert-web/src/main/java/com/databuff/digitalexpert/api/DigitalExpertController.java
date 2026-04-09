@@ -21,6 +21,7 @@ import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitExpertTrainingTaskRequest;
+import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsCommand;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
@@ -137,6 +138,11 @@ public class DigitalExpertController {
         return ApiResponse.success(
                 digitalExpertService.updateBindings(request.expertId(), request.toBindingsRequest())
         );
+    }
+
+    @PostMapping("/update")
+    public ApiResponse<ExpertSummaryResponse> updateExpert(@Valid @RequestBody UpdateExpertCommand request) {
+        return ApiResponse.success(digitalExpertService.updateExpert(request));
     }
 
     @PostMapping("/delete")

@@ -342,7 +342,12 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         int pollCount = increasePollCount(task);
         long elapsedMs = calculateElapsedMs(task.getUpdatedAt());
         long gracePeriodMs = properties.getTraining().getArtifactGracePeriod().toMillis();
-        if (elapsedMs < gracePeriodMs) {
+        boolean skillReadySignalDetected = hasSkillReadySignal(task);
+        if (!skillReadySignalDetected && elapsedMs >= gracePeriodMs) {
+            markTaskFailed(task.getTaskId(), "训练产物在最大等待时间内未生成 SKILL.md");
+            return;
+        }
+        if (!skillReadySignalDetected) {
             if (shouldLogProgress(pollCount, 6)) {
                 long remainingMs = Math.max(gracePeriodMs - elapsedMs, 0L);
                 log.info("训练产物缓冲中, taskId={}, elapsedMs={}, remainingMs={}",
@@ -374,6 +379,14 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             log.info("训练产物导入完成，已触发发布任务, taskId={}, releaseTaskId={}", task.getTaskId(), releaseTask.taskId());
         } catch (BusinessException ex) {
             if (isArtifactsNotReady(ex)) {
+                if (elapsedMs < gracePeriodMs) {
+                    if (shouldLogProgress(pollCount, 6)) {
+                        long remainingMs = Math.max(gracePeriodMs - elapsedMs, 0L);
+                        log.info("训练产物尚未完全就绪，继续等待, taskId={}, elapsedMs={}, remainingMs={}, reason={}",
+                                task.getTaskId(), elapsedMs, remainingMs, ex.getMessage());
+                    }
+                    return;
+                }
                 markTaskFailed(task.getTaskId(), "训练产物未就绪或校验失败: " + ex.getMessage());
             } else {
                 log.error("处理训练产物失败, taskId={}", task.getTaskId(), ex);
@@ -515,6 +528,16 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             validateSkillDirectory(directory, versionDirectory);
         }
         return List.copyOf(directories);
+    }
+
+    private boolean hasSkillReadySignal(ExpertTrainingTaskEntity task) {
+        try {
+            Path versionDirectory = normalizeAndCheckOutputPath(task.getOutputDir());
+            Path skillRootDirectory = resolveSkillRootDirectory(versionDirectory);
+            return Files.isRegularFile(skillRootDirectory.resolve("SKILL.md"));
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private List<Path> loadSkillDirectoriesFromManifestJson(String manifestJson, Path skillRootDirectory) {

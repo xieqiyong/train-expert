@@ -54,7 +54,7 @@ digital-expert:
     spec-skill-path: /app/skills/root-skills-creator/
     poll-interval-ms: 5000
     session-timeout: 300m
-    artifact-grace-period: 10m
+    artifact-grace-period: 300m
     release-timeout: 30m
   proxy:
     timeout-ms: 15000

@@ -6,6 +6,7 @@ public record ExpertSummaryResponse(
         String aliasName,
         String description,
         String expertType,
+        String expertSource,
         String status,
         Boolean trainingInProgress
 ) {

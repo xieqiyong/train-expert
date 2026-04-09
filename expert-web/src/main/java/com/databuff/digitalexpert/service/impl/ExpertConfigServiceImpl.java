@@ -63,6 +63,7 @@ public class ExpertConfigServiceImpl implements ExpertConfigService {
                 expert.getDescription(),
                 expert.getPrompt(),
                 expert.getExpertType(),
+                expert.getExpertSource(),
                 expert.getStatus(),
                 expert.getSharedPath(),
                 expert.getConfigJsonPath(),

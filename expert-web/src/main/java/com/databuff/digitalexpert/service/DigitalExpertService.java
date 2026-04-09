@@ -9,7 +9,9 @@ import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
+import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
+import com.databuff.digitalexpert.dao.enums.ExpertSource;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
 import com.databuff.digitalexpert.dao.enums.ExpertType;
@@ -19,6 +21,8 @@ import org.springframework.web.multipart.MultipartFile;
 public interface DigitalExpertService {
 
     ExpertSummaryResponse createExpert(CreateExpertRequest request);
+
+    ExpertSummaryResponse createExpert(CreateExpertRequest request, ExpertSource expertSource);
 
     List<ExpertSummaryResponse> listExpertsByNames(List<String> names,
                                                    ExpertType expertType,
@@ -32,6 +36,8 @@ public interface DigitalExpertService {
     ForwardTrainingSubmitResponse submitForwardTraining(SubmitForwardTrainingRequest request);
 
     ImportExpertPackageResponse importExpertPackage(MultipartFile packageFile, boolean autoRelease);
+
+    ExpertSummaryResponse updateExpert(UpdateExpertCommand request);
 
     ExpertBindingUpdateResponse updateBindings(Long expertId, UpdateExpertBindingsRequest request);
 
