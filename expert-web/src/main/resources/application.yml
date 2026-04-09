@@ -1,6 +1,15 @@
 spring:
   application:
     name: databuff-digital-expert
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:192.168.50.195:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:databuff-digital-expert}
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      missing-topics-fatal: false
   datasource:
     url: ${DB_URL:jdbc:mysql://192.168.50.195:3306/expert_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:root}
@@ -12,6 +21,7 @@ spring:
       schema-locations:
         - classpath:schema.sql
         - classpath:conversation-schema.sql
+        - classpath:kafka-schema.sql
   servlet:
     multipart:
       max-file-size: 1024MB
@@ -59,6 +69,10 @@ digital-expert:
   proxy:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
+  kafka:
+    enabled: ${KAFKA_ENABLED:true}
+    topics:
+      dc-databuff-k8s: dc_databuff_k8s
   static-package: /app/upload/static
 
 opencode:

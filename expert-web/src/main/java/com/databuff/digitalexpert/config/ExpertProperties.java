@@ -33,6 +33,7 @@ public class ExpertProperties {
      */
     private Training training = new Training();
     private Conversation conversation = new Conversation();
+    private Kafka kafka = new Kafka();
 
     /**
      * 代理服务调用配置。
@@ -147,6 +148,29 @@ public class ExpertProperties {
 
         @Min(1000)
         private int syncTimeoutMs = 15 * 60 * 1000;
+    }
+
+    @Getter
+    @Setter
+    public static class Kafka {
+
+        /**
+         * 鏄惁鍚敤 Kafka 娑堟伅娑堣垂銆?         */
+        private boolean enabled = false;
+
+        /**
+         * Kafka Topic 閰嶇疆銆?         */
+        private Topics topics = new Topics();
+    }
+
+    @Getter
+    @Setter
+    public static class Topics {
+
+        /**
+         * K8s 涓婃姤涓婚锛岀敤浜庡悗缁В鏋?serviceVersion銆?         */
+        @NotBlank
+        private String dcDatabuffK8s = "dc_databuff_k8s";
     }
 
     @Getter

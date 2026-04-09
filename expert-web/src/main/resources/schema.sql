@@ -213,3 +213,28 @@ CREATE TABLE IF NOT EXISTS `de_agent_skill_deployment` (
   UNIQUE KEY `uk_de_agent_skill_directory` (`agent_id`,`skill_directory_name`),
   KEY `idx_de_agent_skill_deployment_agent_id` (`agent_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Agent技能部署记录';
+
+-- de_service_version_snapshot 表定义
+CREATE TABLE IF NOT EXISTS `de_service_version_snapshot` (
+     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+     `app_name` varchar(255) NOT NULL COMMENT '服务名称',
+     `cluster_id` varchar(128) NOT NULL DEFAULT '' COMMENT '集群ID',
+     `cluster_name` varchar(255) DEFAULT NULL COMMENT '集群名称',
+     `namespace` varchar(128) NOT NULL DEFAULT '' COMMENT '命名空间',
+     `workload_name` varchar(255) DEFAULT NULL COMMENT '工作负载名称',
+     `pod_name` varchar(255) NOT NULL DEFAULT '' COMMENT 'Pod名称',
+     `container_name` varchar(255) NOT NULL DEFAULT '' COMMENT '容器名称',
+     `image_name` varchar(1024) DEFAULT NULL COMMENT '镜像名称',
+     `service_version` varchar(255) NOT NULL COMMENT '镜像Tag版本',
+     `status` varchar(64) DEFAULT NULL COMMENT '运行状态',
+     `source_topic` varchar(255) DEFAULT NULL COMMENT 'Kafka主题',
+     `message_offset` bigint DEFAULT NULL COMMENT 'Kafka偏移量',
+     `raw_payload` longtext COMMENT '原始消息体',
+     `last_seen_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最近一次观测时间',
+     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+     `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+     PRIMARY KEY (`id`),
+     UNIQUE KEY `uk_de_service_version_snapshot_identity` (`cluster_id`,`namespace`,`pod_name`,`container_name`),
+     KEY `idx_de_service_version_snapshot_app_name` (`app_name`),
+     KEY `idx_de_service_version_snapshot_last_seen_at` (`last_seen_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='服务版本快照';
