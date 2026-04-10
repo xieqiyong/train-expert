@@ -45,8 +45,6 @@ public class K8sServiceVersionIngestServiceImpl implements K8sServiceVersionInge
             for (ServiceVersionSnapshotEntity snapshot : snapshots) {
                 serviceVersionSnapshotService.saveOrUpdate(snapshot);
             }
-            log.info("Kafka 消息 serviceVersion 入库完成, topic={}, partition={}, offset={}, recordCount={}",
-                    topic, partition, offset, snapshots.size());
         } catch (Exception ex) {
             log.error("Kafka 消息解析并入库失败, topic={}, partition={}, offset={}", topic, partition, offset, ex);
         }

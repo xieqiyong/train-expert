@@ -515,7 +515,6 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Transactional
     public boolean deleteExpert(Long expertId) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
-        ensureExpertEditable(expert);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,
@@ -1008,7 +1007,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         }
         throw BusinessException.conflict(
                 ErrorCode.EXPERT_NOT_EDITABLE,
-                "当前专家不是手工创建类型，暂不允许修改或删除"
+                "当前专家不是手工创建类型，暂不允许修改、绑定或变更状态"
         );
     }
 

@@ -24,8 +24,6 @@ public class DcDatabuffK8sKafkaConsumer {
         if (record == null) {
             return;
         }
-        log.info("开始消费 Kafka 消息, topic={}, partition={}, offset={}",
-                record.topic(), record.partition(), record.offset());
         k8sServiceVersionIngestService.ingest(
                 record.value(),
                 record.topic(),
