@@ -21,7 +21,6 @@ spring:
       schema-locations:
         - classpath:schema.sql
         - classpath:conversation-schema.sql
-        - classpath:kafka-schema.sql
   servlet:
     multipart:
       max-file-size: 1024MB
@@ -63,7 +62,7 @@ digital-expert:
     output-root: /app/agent/output/
     spec-skill-path: /app/skills/root-skills-creator/
     poll-interval-ms: 5000
-    session-timeout: 300m
+    session-timeout: 720m
     artifact-grace-period: 300m
     release-timeout: 30m
   proxy:

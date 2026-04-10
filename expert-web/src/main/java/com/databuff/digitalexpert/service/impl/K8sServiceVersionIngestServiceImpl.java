@@ -20,26 +20,26 @@ import org.springframework.util.StringUtils;
 @Service
 public class K8sServiceVersionIngestServiceImpl implements K8sServiceVersionIngestService {
 
+    private static final int SUPPORTED_MESSAGE_TYPE = 41;
+
     @Autowired
     private ServiceVersionSnapshotService serviceVersionSnapshotService;
 
     @Override
     public void ingest(String payload, String topic, int partition, long offset) {
         if (!StringUtils.hasText(payload)) {
-            log.warn("Kafka 消息为空，忽略处理, topic={}, partition={}, offset={}", topic, partition, offset);
             return;
         }
         if (!JSON.isValidObject(payload)) {
-            log.warn("Kafka 消息不是合法 JSON 对象，忽略处理, topic={}, partition={}, offset={}, payloadPreview={}",
-                    topic, partition, offset, abbreviatePayload(payload));
             return;
         }
         try {
             JSONObject root = JSON.parseObject(payload);
+            if (!isSupportedMessageType(root)) {
+                return;
+            }
             List<ServiceVersionSnapshotEntity> snapshots = parseSnapshots(root, payload, topic, offset);
             if (snapshots.isEmpty()) {
-                log.info("Kafka 消息未解析到可入库的 serviceVersion 记录, topic={}, partition={}, offset={}, payloadPreview={}",
-                        topic, partition, offset, abbreviatePayload(payload));
                 return;
             }
             for (ServiceVersionSnapshotEntity snapshot : snapshots) {
@@ -50,6 +50,14 @@ public class K8sServiceVersionIngestServiceImpl implements K8sServiceVersionInge
         } catch (Exception ex) {
             log.error("Kafka 消息解析并入库失败, topic={}, partition={}, offset={}", topic, partition, offset, ex);
         }
+    }
+
+    private boolean isSupportedMessageType(JSONObject root) {
+        if (root == null) {
+            return false;
+        }
+        Integer type = root.getInteger("type");
+        return type != null && type == SUPPORTED_MESSAGE_TYPE;
     }
 
     private List<ServiceVersionSnapshotEntity> parseSnapshots(JSONObject root,
