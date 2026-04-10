@@ -42,6 +42,7 @@ import com.databuff.digitalexpert.service.storage.ZipArchiveService;
 import com.databuff.digitalexpert.util.AgentSessionId;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -68,6 +69,9 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Service
 public class ExpertTrainingServiceImpl implements ExpertTrainingService {
+
+    private static final Pattern SKILL_MD_NAME_PATTERN = Pattern.compile("(?m)^name\\s*:\\s*(.+?)\\s*$");
+    private static final Pattern SKILL_MD_DESCRIPTION_PATTERN = Pattern.compile("(?m)^description\\s*:\\s*(.+?)\\s*$");
 
     private static final Pattern AUTO_VERSION_PATTERN = Pattern.compile("^v(\\d+)$", Pattern.CASE_INSENSITIVE);
 
@@ -647,6 +651,29 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         return skillRootDirectory;
     }
 
+    private void validateSkillMdYamlFrontmatter(Path skillMdPath) {
+        String content;
+        try {
+            content = Files.readString(skillMdPath, StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
+                    "无法读取 SKILL.md: " + skillMdPath);
+        }
+        if (!hasNonEmptySkillMdField(SKILL_MD_NAME_PATTERN, content)
+                || !hasNonEmptySkillMdField(SKILL_MD_DESCRIPTION_PATTERN, content)) {
+            throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
+                    "SKILL.md 的 YAML 头必须同时包含有效的 name 与 description: " + skillMdPath);
+        }
+    }
+
+    private static boolean hasNonEmptySkillMdField(Pattern pattern, String content) {
+        Matcher matcher = pattern.matcher(content);
+        if (!matcher.find()) {
+            return false;
+        }
+        return StringUtils.hasText(matcher.group(1).trim());
+    }
+
     private void validateSkillDirectory(Path skillRootDirectory, Path versionDirectory) {
         if (!Files.exists(skillRootDirectory) || !Files.isDirectory(skillRootDirectory)) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
@@ -657,6 +684,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "技能根目录缺少 SKILL.md: " + skillRootDirectory);
         }
+        validateSkillMdYamlFrontmatter(skillMdPath);
         if (!Files.exists(versionDirectory) || !Files.isDirectory(versionDirectory)) {
             throw BusinessException.badRequest(ErrorCode.TRAINING_OUTPUT_INVALID,
                     "版本目录不存在: " + versionDirectory);
@@ -696,6 +724,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         return message.contains("训练输出目录不存在")
                 || message.contains("技能根目录不存在")
                 || message.contains("缺少 SKILL.md")
+                || message.contains("SKILL.md 的 YAML 头必须同时包含有效的 name 与 description")
                 || message.contains("版本目录不存在")
                 || message.contains("缺少 static_package")
                 || message.contains("无法从版本目录解析技能根目录");
