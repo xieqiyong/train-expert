@@ -5,6 +5,8 @@ import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.databuff.digitalexpert.dao.dto.ConversationMessageResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationMessagesResponse;
+import com.databuff.digitalexpert.dao.dto.ConversationSessionSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.ConversationSessionsResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationSendRequest;
 import com.databuff.digitalexpert.dao.dto.ConversationWorkflowEventResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationWorkflowResponse;
@@ -264,6 +266,38 @@ public class ConversationStorageService {
         return new ConversationMessagesResponse(sessionId, responses);
     }
 
+    public ConversationSessionsResponse listSessions(Integer limit) {
+        LambdaQueryWrapper<ConversationSessionEntity> wrapper = new LambdaQueryWrapper<ConversationSessionEntity>()
+                .orderByDesc(ConversationSessionEntity::getUpdatedAt)
+                .orderByDesc(ConversationSessionEntity::getId);
+        Integer sanitizedLimit = sanitizeLimit(limit);
+        if (sanitizedLimit != null) {
+            wrapper.last("limit " + sanitizedLimit);
+        }
+        List<ConversationSessionEntity> sessions = conversationSessionMapper.selectList(wrapper);
+        List<ConversationSessionSummaryResponse> responses = new ArrayList<>(sessions.size());
+        for (ConversationSessionEntity session : sessions) {
+            responses.add(new ConversationSessionSummaryResponse(
+                    session.getSessionId(),
+                    session.getSessionTitle(),
+                    session.getDirectory(),
+                    session.getWorkspace(),
+                    session.getProviderId(),
+                    session.getModelId(),
+                    session.getAgent(),
+                    session.getStatus(),
+                    session.getLastError(),
+                    session.getMessageCount(),
+                    session.getWorkflowCount(),
+                    session.getLastSyncedAt(),
+                    session.getFinishedAt(),
+                    session.getCreatedAt(),
+                    session.getUpdatedAt()
+            ));
+        }
+        return new ConversationSessionsResponse(responses);
+    }
+
     public ConversationWorkflowResponse listWorkflow(String sessionId, Integer limit) {
         List<ConversationWorkflowEventEntity> events = conversationWorkflowEventMapper.selectList(
                 new LambdaQueryWrapper<ConversationWorkflowEventEntity>()
@@ -432,5 +466,12 @@ public class ConversationStorageService {
             return source;
         }
         return new ArrayList<>(source.subList(source.size() - limit, source.size()));
+    }
+
+    private Integer sanitizeLimit(Integer limit) {
+        if (limit == null || limit <= 0) {
+            return null;
+        }
+        return Math.min(limit, 200);
     }
 }

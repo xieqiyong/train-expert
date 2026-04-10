@@ -31,6 +31,7 @@ import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.ExpertTrainingService;
+import com.databuff.digitalexpert.service.ServiceVersionSnapshotService;
 import com.databuff.digitalexpert.dao.bo.TrainingContext;
 import com.databuff.digitalexpert.service.TrainingDispatcher;
 import com.databuff.digitalexpert.service.prompt.TrainingPromptContext;
@@ -101,6 +102,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     @Autowired
     private TrainingProxyClient trainingProxyClient;
     @Autowired
+    private ServiceVersionSnapshotService serviceVersionSnapshotService;
+    @Autowired
     @Qualifier("trainingSubmitExecutor")
     private Executor trainingSubmitExecutor;
     @Autowired
@@ -129,7 +132,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         String skillDirName = resolveSkillDirectoryName(normalizedSources, taskId, expert.getName());
         AppInfoSource appInfoSource = findAppInfoSource(normalizedSources);
         Path skillRootDirectory = resolveSkillRootDirectory(expertId, skillDirName);
-        Path outputDirectory = resolveTrainingOutputDirectory(skillRootDirectory, appInfoSource, normalizedSources);
+        Path outputDirectory = resolveTrainingOutputDirectory(skillRootDirectory, expert, appInfoSource, normalizedSources);
 
         LocalDateTime now = LocalDateTime.now();
         ExpertTrainingTaskEntity task = new ExpertTrainingTaskEntity();
@@ -1198,23 +1201,39 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private Path resolveTrainingOutputDirectory(Path skillRootDirectory,
+                                                DigitalExpertEntity expert,
                                                 AppInfoSource appInfoSource,
                                                 List<TrainingSourceRequest> sources) {
-        String versionDirectoryName = resolveVersionDirectoryName(skillRootDirectory, appInfoSource, sources);
+        String versionDirectoryName = resolveVersionDirectoryName(skillRootDirectory, expert, appInfoSource, sources);
         return skillRootDirectory.resolve(versionDirectoryName).normalize();
     }
 
     private String resolveVersionDirectoryName(Path skillRootDirectory,
+                                               DigitalExpertEntity expert,
                                                AppInfoSource appInfoSource,
                                                List<TrainingSourceRequest> sources) {
         String requestedVersionDirectoryName = resolveRequestedVersionDirectoryName(sources);
         if (StringUtils.hasText(requestedVersionDirectoryName)) {
             return requestedVersionDirectoryName;
         }
+        String latestSnapshotVersion = resolveLatestSnapshotServiceVersion(expert);
+        if (StringUtils.hasText(latestSnapshotVersion)) {
+            return latestSnapshotVersion;
+        }
         if (appInfoSource != null && StringUtils.hasText(appInfoSource.serviceVersion())) {
             return appInfoSource.serviceVersion();
         }
         return resolveNextAutoVersionDirectoryName(skillRootDirectory);
+    }
+
+    private String resolveLatestSnapshotServiceVersion(DigitalExpertEntity expert) {
+        if (expert == null || !StringUtils.hasText(expert.getAppName())) {
+            return null;
+        }
+        return serviceVersionSnapshotService.findLatestServiceVersionByAppName(expert.getAppName())
+                .map(this::normalizeVersionDirectoryName)
+                .filter(StringUtils::hasText)
+                .orElse(null);
     }
 
     private String resolveRequestedVersionDirectoryName(List<TrainingSourceRequest> sources) {

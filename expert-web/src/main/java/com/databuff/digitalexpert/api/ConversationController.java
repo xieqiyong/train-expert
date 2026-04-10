@@ -7,6 +7,8 @@ import com.databuff.digitalexpert.dao.dto.ConversationMessagesResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationSendRequest;
 import com.databuff.digitalexpert.dao.dto.ConversationSendResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationSessionRequest;
+import com.databuff.digitalexpert.dao.dto.ConversationSessionsRequest;
+import com.databuff.digitalexpert.dao.dto.ConversationSessionsResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationWorkflowRequest;
 import com.databuff.digitalexpert.dao.dto.ConversationWorkflowResponse;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
@@ -36,6 +38,13 @@ public class ConversationController {
     public ApiResponse<ConversationMessagesResponse> listMessages(
             @Valid @RequestBody ConversationMessagesRequest request) {
         return ApiResponse.success(conversationService.listMessages(request));
+    }
+
+    @PostMapping("/sessions/list")
+    public ApiResponse<ConversationSessionsResponse> listSessions(
+            @RequestBody(required = false) ConversationSessionsRequest request) {
+        ConversationSessionsRequest actualRequest = request == null ? new ConversationSessionsRequest(null) : request;
+        return ApiResponse.success(conversationService.listSessions(actualRequest));
     }
 
     @PostMapping("/workflow/list")

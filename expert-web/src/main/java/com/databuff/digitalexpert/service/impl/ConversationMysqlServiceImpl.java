@@ -8,6 +8,8 @@ import com.databuff.digitalexpert.dao.dto.ConversationMessagesResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationSendRequest;
 import com.databuff.digitalexpert.dao.dto.ConversationSendResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationSessionRequest;
+import com.databuff.digitalexpert.dao.dto.ConversationSessionsRequest;
+import com.databuff.digitalexpert.dao.dto.ConversationSessionsResponse;
 import com.databuff.digitalexpert.dao.dto.ConversationWorkflowRequest;
 import com.databuff.digitalexpert.dao.dto.ConversationWorkflowResponse;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
@@ -89,6 +91,20 @@ public class ConversationMysqlServiceImpl implements ConversationService {
             throw BusinessException.badRequest(
                     ErrorCode.CONVERSATION_PROXY_REQUEST_FAILED,
                     "list conversation messages failed: " + ex.getMessage()
+            );
+        }
+    }
+
+    @Override
+    public ConversationSessionsResponse listSessions(ConversationSessionsRequest request) {
+        try {
+            return conversationStorageService.listSessions(request.limit());
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw BusinessException.badRequest(
+                    ErrorCode.CONVERSATION_PROXY_REQUEST_FAILED,
+                    "list conversation sessions failed: " + ex.getMessage()
             );
         }
     }
