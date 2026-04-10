@@ -1227,10 +1227,18 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private String resolveLatestSnapshotServiceVersion(DigitalExpertEntity expert) {
-        if (expert == null || !StringUtils.hasText(expert.getAppName())) {
+        if (expert == null) {
             return null;
         }
-        return serviceVersionSnapshotService.findLatestServiceVersionByAppName(expert.getAppName())
+        // Kafka 版本快照当前按平台侧的应用标识入库，优先使用专家别名匹配，
+        // 原始 appName 可能包含命名空间前缀（如 ::），仅作为兜底回退。
+        String lookupAppName = StringUtils.hasText(expert.getAliasName())
+                ? expert.getAliasName().trim()
+                : StringUtils.hasText(expert.getAppName()) ? expert.getAppName().trim() : null;
+        if (!StringUtils.hasText(lookupAppName)) {
+            return null;
+        }
+        return serviceVersionSnapshotService.findLatestServiceVersionByAppName(lookupAppName)
                 .map(this::normalizeVersionDirectoryName)
                 .filter(StringUtils::hasText)
                 .orElse(null);
