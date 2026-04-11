@@ -1,0 +1,1 @@
+const e={SERVICE:"服务类型",BUILTIN:"内置类型",FAULT_ANALYSIS:"故障分析"};function n(t){return t?e[t]||t:"-"}function r(t){return t?new Date(t).toLocaleString("zh-CN",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:!1}):"-"}export{r as f,n as g};
