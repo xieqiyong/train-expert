@@ -9,13 +9,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 public class ConversationSyncConfiguration {
 
     @Bean("conversationSyncExecutor")
-    public Executor conversationSyncExecutor(ExpertProperties expertProperties) {
-        ExpertProperties.Conversation conversation = expertProperties.getConversation();
+    public Executor conversationSyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("conversation-sync-");
-        executor.setCorePoolSize(conversation.getExecutorPoolSize());
-        executor.setMaxPoolSize(conversation.getExecutorPoolSize());
-        executor.setQueueCapacity(conversation.getExecutorQueueCapacity());
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(100);
         executor.initialize();
         return executor;
     }

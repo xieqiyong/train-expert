@@ -24,14 +24,10 @@ public class ExpertProperties {
     private String staticPackage;
 
     /**
-     * 发布相关配置。
-     */
-    private Release release = new Release();
-
-    /**
      * 训练相关配置。
      */
     private Training training = new Training();
+    private Redis redis = new Redis();
     private Conversation conversation = new Conversation();
     private Kafka kafka = new Kafka();
 
@@ -44,23 +40,6 @@ public class ExpertProperties {
      * 跨域配置。
      */
     private Cors cors = new Cors();
-
-    @Getter
-    @Setter
-    public static class Release {
-
-        /**
-         * 发布任务线程池大小。
-         */
-        @Min(1)
-        private int executorPoolSize = 2;
-
-        /**
-         * 发布任务线程池队列容量。
-         */
-        @Min(1)
-        private int executorQueueCapacity = 50;
-    }
 
     @Getter
     @Setter
@@ -86,7 +65,7 @@ public class ExpertProperties {
          * 训练提交线程池大小。
          */
         @Min(1)
-        private int submitExecutorPoolSize = 5;
+        private int submitExecutorPoolSize = 50;
 
         /**
          * 训练提交线程池队列容量。
@@ -132,13 +111,27 @@ public class ExpertProperties {
 
     @Getter
     @Setter
+    public static class Redis {
+
+        @NotBlank
+        private String host = "redis";
+
+        @Min(1)
+        private int port = 6379;
+
+        private String password;
+
+        @Min(0)
+        private int database = 0;
+
+        private Duration connectTimeout = Duration.ofSeconds(5);
+
+        private Duration timeout = Duration.ofSeconds(3);
+    }
+
+    @Getter
+    @Setter
     public static class Conversation {
-
-        @Min(1)
-        private int executorPoolSize = 4;
-
-        @Min(1)
-        private int executorQueueCapacity = 200;
 
         @Min(0)
         private int bootstrapDelayMs = 300;
@@ -154,12 +147,8 @@ public class ExpertProperties {
     @Setter
     public static class Kafka {
 
-        /**
-         * 鏄惁鍚敤 Kafka 娑堟伅娑堣垂銆?         */
         private boolean enabled = false;
 
-        /**
-         * Kafka Topic 閰嶇疆銆?         */
         private Topics topics = new Topics();
     }
 

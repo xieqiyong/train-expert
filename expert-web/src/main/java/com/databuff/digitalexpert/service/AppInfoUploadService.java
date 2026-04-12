@@ -5,5 +5,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface AppInfoUploadService {
 
-    AppInfoUploadResult upload(MultipartFile file, String fileType);
+    AppInfoUploadResult saveArchive(MultipartFile file, String fileType);
+
+    AppInfoUploadResult extractArchive(AppInfoUploadResult uploadResult);
 }

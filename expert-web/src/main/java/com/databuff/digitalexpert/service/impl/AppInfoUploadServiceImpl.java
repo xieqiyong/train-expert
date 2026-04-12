@@ -6,6 +6,7 @@ import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.AppInfoUploadResult;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.service.AppInfoUploadService;
+import com.databuff.digitalexpert.util.AppInfoUploadNamingUtils;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -41,23 +42,34 @@ public class AppInfoUploadServiceImpl implements AppInfoUploadService {
     private SharedStorageService sharedStorageService;
 
     @Override
-    public AppInfoUploadResult upload(MultipartFile file, String fileType) {
+    public AppInfoUploadResult saveArchive(MultipartFile file, String fileType) {
         if (file == null || file.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "上传文件不能为空");
         }
 
-        String originalFileName = resolveOriginalFileName(file);
-        String appName = resolveAppName(originalFileName);
+        String originalFileName = AppInfoUploadNamingUtils.resolveOriginalFileName(file);
+        String appName = AppInfoUploadNamingUtils.resolveAppName(originalFileName);
         long uploadTime = Instant.now().toEpochMilli();
         Path uploadDirectory = resolveUploadDirectory(appName, uploadTime);
         sharedStorageService.createDirectories(uploadDirectory);
 
         Path archivePath = uploadDirectory.resolve(originalFileName).normalize();
         saveUploadedFile(file, archivePath);
-        extractArchive(archivePath, uploadDirectory);
+        return new AppInfoUploadResult(
+                appName,
+                null,
+                originalFileName,
+                originalFileName,
+                normalizeFileType(fileType),
+                file.getSize(),
+                archivePath.toString(),
+                archivePath.toString(),
+                uploadTime,
+                null,
+                false
+        ); /*
+        
 
-        Path appInfoPath = uploadDirectory.resolve(APP_INFO_DIRECTORY_NAME).normalize();
-        if (!Files.isDirectory(appInfoPath)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "解压后未找到 app_info 目录: " + appInfoPath);
         }
         String serviceName = resolveRawServiceName(appInfoPath);
@@ -72,6 +84,38 @@ public class AppInfoUploadServiceImpl implements AppInfoUploadService {
                 archivePath.toString(),
                 archivePath.toString(),
                 uploadTime,
+                appInfoPath.toString(),
+                true
+        ); */
+    }
+
+    @Override
+    public AppInfoUploadResult extractArchive(AppInfoUploadResult uploadResult) {
+        if (uploadResult == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "上传结果不能为空");
+        }
+        Path archivePath = Path.of(uploadResult.storagePath()).normalize();
+        Path uploadDirectory = archivePath.getParent();
+        if (uploadDirectory == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "上传文件路径不合法: " + archivePath);
+        }
+        extractArchive(archivePath, uploadDirectory);
+
+        Path appInfoPath = uploadDirectory.resolve(APP_INFO_DIRECTORY_NAME).normalize();
+        if (!Files.isDirectory(appInfoPath)) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "解压后未找到 app_info 目录: " + appInfoPath);
+        }
+        String serviceName = resolveRawServiceName(appInfoPath);
+        return new AppInfoUploadResult(
+                uploadResult.appName(),
+                serviceName,
+                uploadResult.originalFileName(),
+                uploadResult.storageFileName(),
+                uploadResult.fileType(),
+                uploadResult.fileSize(),
+                uploadResult.storagePath(),
+                uploadResult.accessUrl(),
+                uploadResult.uploadTime(),
                 appInfoPath.toString(),
                 true
         );
@@ -176,7 +220,7 @@ public class AppInfoUploadServiceImpl implements AppInfoUploadService {
         return outputPath;
     }
 
-    private String resolveOriginalFileName(MultipartFile file) {
+    /* private String resolveOriginalFileName(MultipartFile file) {
         String originalFileName = file.getOriginalFilename();
         if (!StringUtils.hasText(originalFileName)) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "上传文件名不能为空");
@@ -205,6 +249,8 @@ public class AppInfoUploadServiceImpl implements AppInfoUploadService {
         }
         return normalized;
     }
+
+    } */
 
     private String resolveRawServiceName(Path appInfoPath) {
         Path appJsonPath = appInfoPath.resolve("app.json");

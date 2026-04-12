@@ -1,8 +1,7 @@
 package com.databuff.digitalexpert.api;
 
-import com.databuff.digitalexpert.dao.dto.AppInfoUploadAndTrainResponse;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
-import com.databuff.digitalexpert.service.AppInfoUploadOrchestratorService;
+import com.databuff.digitalexpert.service.AppUploadTrainService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,12 +15,12 @@ import org.springframework.web.multipart.MultipartFile;
 public class InternalAppInfoController {
 
     @Autowired
-    private AppInfoUploadOrchestratorService appInfoUploadOrchestratorService;
+    private AppUploadTrainService appUploadTrainService;
 
     @PostMapping(value = "/uploadAndTrain", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<AppInfoUploadAndTrainResponse> uploadAndTrain(
+    public ApiResponse<Boolean> uploadAndTrain(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "fileType", required = false, defaultValue = "jar") String fileType) {
-        return ApiResponse.success(appInfoUploadOrchestratorService.uploadAndTrain(file, fileType));
+        return ApiResponse.success(appUploadTrainService.uploadAndTrain(file, fileType));
     }
 }

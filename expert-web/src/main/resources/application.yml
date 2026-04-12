@@ -2,16 +2,16 @@ spring:
   application:
     name: databuff-digital-expert
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:192.168.50.195:9092}
     consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP:databuff-digital-expert-dev}
+      group-id: ${KAFKA_CONSUMER_GROUP:databuff-digital-expert}
       auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       missing-topics-fatal: false
   datasource:
-    url: ${DB_URL:jdbc:mysql://192.168.50.120:13306/expert_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    url: ${DB_URL:jdbc:mysql://192.168.50.195:3306/expert_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:234*(sdlj12}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -41,38 +41,28 @@ mybatis-plus:
     banner: false
 
 digital-expert:
-  cors:
-    enabled: true
-    path-pattern: /api/**
-    allowed-origin-patterns:
-      - "*"
-    allowed-methods:
-      - GET
-      - POST
-      - PUT
-      - DELETE
-      - OPTIONS
-    allowed-headers:
-      - "*"
-    exposed-headers:
-      - Content-Disposition
-    allow-credentials: false
-    max-age-seconds: 3600
   training:
-    output-root: E:\ai-work\app\agent/output/
-    spec-skill-path: E:\ai-work\databuff-digital-expert\expert-web\src\main\resources\skills\root-skills-creator\
+    output-root: /app/agent/output/
+    spec-skill-path: /app/skills/root-skills-creator/
     poll-interval-ms: 5000
     session-timeout: 720m
     artifact-grace-period: 300m
     release-timeout: 30m
+  redis:
+    host: ${REDIS_HOST:192.168.50.195}
+    port: ${REDIS_PORT:16379}
+    password: ${REDIS_PASSWORD:Databuff@123+}
+    database: ${REDIS_DATABASE:1}
+    connect-timeout: 5s
+    timeout: 3s
   proxy:
     timeout-ms: 15000
     base-url: http://127.0.0.1:19300
   kafka:
-    enabled: ${KAFKA_ENABLED:false}
+    enabled: ${KAFKA_ENABLED:true}
     topics:
       dc-databuff-k8s: dc_databuff_k8s
-  static-package: E:\ai-work\app\upload\static
+  static-package: /app/upload/static
 
 opencode:
   base-url: http://127.0.0.1:4096

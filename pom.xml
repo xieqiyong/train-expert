@@ -30,6 +30,7 @@
         <hutool.version>5.8.25</hutool.version>
         <commons-compress.version>1.28.0</commons-compress.version>
         <opencode.version>1.0.0</opencode.version>
+        <redisson.version>3.45.0</redisson.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
     </properties>
@@ -95,6 +96,11 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
                 <version>${commons-compress.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson</artifactId>
+                <version>${redisson.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
