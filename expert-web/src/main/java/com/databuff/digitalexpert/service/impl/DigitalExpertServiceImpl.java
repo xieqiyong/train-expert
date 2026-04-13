@@ -583,7 +583,6 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     private ExpertSummaryResponse disableExpertInternal(Long expertId, ExpertStatus expertStatus) {
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
-        ensureExpertEditable(expert);
         if (hasActiveReleaseTask(expertId)) {
             throw BusinessException.conflict(
                     ErrorCode.ACTIVE_RELEASE_TASK_EXISTS,

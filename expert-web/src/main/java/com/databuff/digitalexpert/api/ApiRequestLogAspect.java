@@ -37,6 +37,9 @@ public class ApiRequestLogAspect {
         HttpServletRequest request = attributes == null ? null : attributes.getRequest();
         HttpServletResponse response = attributes == null ? null : attributes.getResponse();
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        if (shouldSkipRequestLog(signature, request)) {
+            return joinPoint.proceed();
+        }
         String requestId = buildRequestId();
         long startTime = System.currentTimeMillis();
 
@@ -118,6 +121,13 @@ public class ApiRequestLogAspect {
             return request.getRequestURI();
         }
         return request.getRequestURI() + "?" + queryString;
+    }
+
+    private boolean shouldSkipRequestLog(MethodSignature signature, HttpServletRequest request) {
+        if (signature != null && HealthController.class.equals(signature.getDeclaringType())) {
+            return true;
+        }
+        return request != null && "/health".equals(request.getRequestURI());
     }
 
     private String resolveClientIp(HttpServletRequest request) {
