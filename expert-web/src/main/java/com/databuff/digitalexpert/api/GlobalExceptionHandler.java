@@ -13,6 +13,8 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -39,6 +41,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDuplicate(DuplicateKeyException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.failure(ErrorCode.DUPLICATE_RESOURCE, resolveMessage(ex.getMessage(), ErrorCode.DUPLICATE_RESOURCE)));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.failure(ErrorCode.RESOURCE_NOT_FOUND, resolveMessage(ex.getMessage(), ErrorCode.RESOURCE_NOT_FOUND)));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
+        ErrorCode errorCode = ex.getStatusCode().value() == HttpStatus.NOT_FOUND.value()
+                ? ErrorCode.RESOURCE_NOT_FOUND
+                : ErrorCode.INVALID_REQUEST;
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ApiResponse.failure(errorCode, resolveMessage(ex.getReason(), errorCode)));
     }
 
     @ExceptionHandler(Exception.class)
