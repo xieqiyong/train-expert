@@ -5,5 +5,9 @@ public enum ExpertType {
     SERVICE,
     // 内置
     BUILTIN,
-    FAULT_ANALYSIS
+    // 故障分析
+    FAULT_ANALYSIS,
+    // 通用
+    GENERAL;
+
 }

@@ -1081,15 +1081,6 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             return ExpertType.SERVICE.name();
         }
         String normalizedType = expertType.trim();
-        if ("服务类型".equals(normalizedType)) {
-            return ExpertType.SERVICE.name();
-        }
-        if ("内置类型".equals(normalizedType)) {
-            return ExpertType.BUILTIN.name();
-        }
-        if ("故障分析".equals(normalizedType)) {
-            return ExpertType.FAULT_ANALYSIS.name();
-        }
         normalizedType = normalizedType.toUpperCase(Locale.ROOT);
         try {
             return ExpertType.valueOf(normalizedType).name();
