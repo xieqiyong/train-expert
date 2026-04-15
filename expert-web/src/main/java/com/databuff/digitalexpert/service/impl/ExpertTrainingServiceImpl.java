@@ -17,6 +17,7 @@ import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.entity.SkillPackageEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
+import com.databuff.digitalexpert.dao.enums.ExpertSource;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.PackageStatus;
 import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
@@ -369,6 +370,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
             List<Long> skillIds = importSkillPackages(skillDirectories);
             replaceExpertSkills(task.getExpertId(), skillIds);
+            syncGeneratedExpertDescriptionFromSkills(task.getExpertId(), skillIds);
 
             task = requireTask(task.getTaskId());
             task.setStatus(TrainingTaskStatus.RELEASING.name());
@@ -1047,6 +1049,51 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 .stream()
                 .map(ExpertStaticPackageBindingEntity::getStaticPackageId)
                 .toList();
+    }
+
+    private void syncGeneratedExpertDescriptionFromSkills(Long expertId, List<Long> skillIds) {
+        if (expertId == null || skillIds == null || skillIds.isEmpty()) {
+            return;
+        }
+        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        if (!ExpertSource.GENERATED.name().equals(expert.getExpertSource())) {
+            return;
+        }
+        if (!isGeneratedExpertDescriptionReplaceable(expert)) {
+            return;
+        }
+        SkillPackageEntity firstSkill = skillPackageMapper.selectById(skillIds.get(0));
+        if (firstSkill == null || !StringUtils.hasText(firstSkill.getDescription())) {
+            return;
+        }
+
+        String description = firstSkill.getDescription().trim();
+        if (Objects.equals(expert.getDescription(), description)) {
+            return;
+        }
+        expert.setDescription(description);
+        expert.setUpdatedAt(LocalDateTime.now());
+        digitalExpertMapper.updateById(expert);
+        log.info("已使用训练产物技能描述回填自动生成专家描述, expertId={}, skillId={}", expertId, firstSkill.getId());
+    }
+
+    private boolean isGeneratedExpertDescriptionReplaceable(DigitalExpertEntity expert) {
+        if (expert == null) {
+            return false;
+        }
+        String description = normalizeNullableText(expert.getDescription());
+        if (description == null) {
+            return true;
+        }
+        return Objects.equals(description, normalizeNullableText(expert.getName()))
+                || Objects.equals(description, normalizeNullableText(expert.getAliasName()));
+    }
+
+    private String normalizeNullableText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private boolean hasActiveTrainingTask(Long expertId) {
