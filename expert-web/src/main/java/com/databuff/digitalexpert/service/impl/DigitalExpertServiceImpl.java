@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.AgentBindingExpertResponse;
 import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
+import com.databuff.digitalexpert.dao.dto.BindExpertAgentsCommand;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -85,9 +86,12 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
@@ -135,6 +139,9 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Autowired
     @Qualifier("releaseTaskExecutor")
     private Executor releaseTaskExecutor;
+    @Autowired
+    @Lazy
+    private DigitalExpertService selfProxy;
 
     @Override
     @Transactional
@@ -325,7 +332,73 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         if (request.autoRelease()) {
             releaseTask = expertReleaseService.submitReleaseTask(expert.id());
         }
+        scheduleManualExpertAgentBinding(expert.id(), request.agentIds());
         return new ManualCreateExpertResponse(expert, uploadedSkills, releaseTask);
+    }
+
+    @Override
+    @Transactional
+    public ExpertBindingUpdateResponse bindAgents(BindExpertAgentsCommand request) {
+        if (request == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "绑定请求不能为空");
+        }
+
+        Long expertId = request.expertId();
+        DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
+        ensureExpertEditable(expert);
+        if (ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
+            throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "专家已被禁用: " + expertId);
+        }
+
+        List<Long> agentIds = deduplicateIds(request.agentIds());
+        if (agentIds.isEmpty()) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "智能体ID不能为空");
+        }
+
+        Map<Long, AiAgentEntity> agentMap = aiAgentMapper.selectList(
+                        new LambdaQueryWrapper<AiAgentEntity>()
+                                .in(AiAgentEntity::getId, agentIds)
+                ).stream()
+                .collect(Collectors.toMap(AiAgentEntity::getId, agent -> agent));
+        for (Long agentId : agentIds) {
+            if (!agentMap.containsKey(agentId)) {
+                throw BusinessException.notFound(ErrorCode.AGENT_NOT_FOUND, "AI Agent 不存在: " + agentId);
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> appendedAgentIds = new ArrayList<>();
+        for (Long agentId : agentIds) {
+            AgentExpertBindingEntity existingBinding = agentExpertBindingMapper.selectOne(
+                    new LambdaQueryWrapper<AgentExpertBindingEntity>()
+                            .eq(AgentExpertBindingEntity::getAgentId, agentId)
+                            .eq(AgentExpertBindingEntity::getExpertId, expertId)
+                            .last("limit 1")
+            );
+            if (existingBinding != null) {
+                continue;
+            }
+
+            AgentExpertBindingEntity entity = new AgentExpertBindingEntity();
+            entity.setAgentId(agentId);
+            entity.setExpertId(expertId);
+            entity.setSortNo(resolveNextAgentExpertSortNo(agentId));
+            entity.setCreatedAt(now);
+            agentExpertBindingMapper.insert(entity);
+            appendedAgentIds.add(agentId);
+        }
+
+        if (!appendedAgentIds.isEmpty()) {
+            aiAgentMapper.update(null, new LambdaUpdateWrapper<AiAgentEntity>()
+                    .in(AiAgentEntity::getId, appendedAgentIds)
+                    .set(AiAgentEntity::getUpdatedAt, now));
+            for (Long agentId : appendedAgentIds) {
+                agentDeploymentService.refreshAgent(agentId);
+                agentRuntimeConfigService.refreshAgentConfig(agentId);
+            }
+        }
+
+        return new ExpertBindingUpdateResponse(expertId, true);
     }
 
     @Override
@@ -1103,6 +1176,45 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             }
         }
         return List.copyOf(values);
+    }
+
+    private void scheduleManualExpertAgentBinding(Long expertId, List<Long> agentIds) {
+        List<Long> normalizedAgentIds = deduplicateIds(agentIds);
+        if (expertId == null || normalizedAgentIds.isEmpty()) {
+            return;
+        }
+        Runnable task = () -> releaseTaskExecutor.execute(() -> executeManualExpertAgentBinding(expertId, normalizedAgentIds));
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+            return;
+        }
+        task.run();
+    }
+
+    private void executeManualExpertAgentBinding(Long expertId, List<Long> agentIds) {
+        try {
+            selfProxy.bindAgents(new BindExpertAgentsCommand(expertId, agentIds));
+            log.info("手工创建专家后已异步提交智能体绑定, expertId={}, agentCount={}", expertId, agentIds.size());
+        } catch (Exception ex) {
+            log.warn("手工创建专家后异步绑定智能体失败, expertId={}, agentIds={}", expertId, agentIds, ex);
+        }
+    }
+
+    private int resolveNextAgentExpertSortNo(Long agentId) {
+        return agentExpertBindingMapper.selectList(
+                        new LambdaQueryWrapper<AgentExpertBindingEntity>()
+                                .eq(AgentExpertBindingEntity::getAgentId, agentId)
+                                .orderByAsc(AgentExpertBindingEntity::getSortNo, AgentExpertBindingEntity::getId)
+                ).stream()
+                .map(AgentExpertBindingEntity::getSortNo)
+                .filter(Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
     }
 
     private List<McpBindingRequest> normalizeMcps(List<McpBindingRequest> mcps) {

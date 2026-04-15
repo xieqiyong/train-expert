@@ -26,6 +26,8 @@ import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
 import com.databuff.digitalexpert.dao.mapper.StaticPackageMapper;
+import com.databuff.digitalexpert.service.AgentDeploymentService;
+import com.databuff.digitalexpert.service.AgentRuntimeConfigService;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.storage.PackagedFile;
@@ -72,6 +74,10 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
     private ExpertConfigService expertConfigService;
     @Autowired
     private ExpertReleaseTaskMapper expertReleaseTaskMapper;
+    @Autowired
+    private AgentDeploymentService agentDeploymentService;
+    @Autowired
+    private AgentRuntimeConfigService agentRuntimeConfigService;
 
     @Override
     @Transactional
@@ -164,6 +170,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
             sharedStorageService.promoteExpertDirectory(stagingDirectory, currentDirectory);
             markTaskSuccess(task, currentConfigPath, currentZipPath);
             updateExpertAfterRelease(expert, taskId, currentDirectory, currentConfigPath, currentZipPath);
+            refreshBoundAgentsAfterRelease(expert.getId(), taskId);
         } catch (Exception ex) {
             log.error("Release task {} failed", taskId, ex);
             if (stagingDirectory != null && sharedStorageService.exists(stagingDirectory)) {
@@ -232,6 +239,19 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
         expert.setStartedAt(now);
         expert.setUpdatedAt(now);
         digitalExpertMapper.updateById(expert);
+    }
+
+    private void refreshBoundAgentsAfterRelease(Long expertId, String taskId) {
+        if (expertId == null) {
+            return;
+        }
+        try {
+            agentDeploymentService.refreshActiveAgentsByExpert(expertId);
+            agentRuntimeConfigService.refreshAgentsByExpert(expertId);
+            log.info("专家发布完成后已刷新关联 AI Agent, expertId={}, releaseTaskId={}", expertId, taskId);
+        } catch (Exception ex) {
+            log.warn("专家发布完成后刷新关联 AI Agent 失败, expertId={}, releaseTaskId={}", expertId, taskId, ex);
+        }
     }
 
     private List<SkillPackageEntity> loadSkillPackages(Long expertId) {

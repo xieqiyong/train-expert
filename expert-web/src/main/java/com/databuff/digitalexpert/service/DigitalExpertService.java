@@ -1,6 +1,7 @@
 package com.databuff.digitalexpert.service;
 
 import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
+import com.databuff.digitalexpert.dao.dto.BindExpertAgentsCommand;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -32,6 +33,8 @@ public interface DigitalExpertService {
     List<AgentBindingGroupResponse> listAgentBindings();
 
     ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles);
+
+    ExpertBindingUpdateResponse bindAgents(BindExpertAgentsCommand request);
 
     ForwardTrainingSubmitResponse submitForwardTraining(SubmitForwardTrainingRequest request);
 

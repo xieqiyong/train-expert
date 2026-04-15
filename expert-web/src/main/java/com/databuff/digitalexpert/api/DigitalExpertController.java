@@ -4,6 +4,7 @@ import com.databuff.digitalexpert.dao.dto.ChangeExpertStatusRequest;
 import com.alibaba.fastjson2.JSON;
 import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
+import com.databuff.digitalexpert.dao.dto.BindExpertAgentsCommand;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
@@ -84,6 +85,11 @@ public class DigitalExpertController {
         return ApiResponse.success(digitalExpertService.listAgentBindings());
     }
 
+    @PostMapping("/agent-bindings/bind")
+    public ApiResponse<ExpertBindingUpdateResponse> bindAgents(@Valid @RequestBody BindExpertAgentsCommand request) {
+        return ApiResponse.success(digitalExpertService.bindAgents(request));
+    }
+
     @PostMapping(value = "/manual/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<ManualCreateExpertResponse> createManualExpert(@RequestParam("name") String name,
                                                                       @RequestParam(value = "description", required = false) String description,
@@ -91,6 +97,7 @@ public class DigitalExpertController {
                                                                       @RequestParam(value = "expertType", required = false) String expertType,
                                                                       @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
                                                                       @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease,
+                                                                      @RequestParam(value = "agentIds", required = false) List<Long> agentIds,
                                                                       @RequestPart("skillFiles") List<MultipartFile> skillFiles) {
         return ApiResponse.success(digitalExpertService.createManualExpert(
                 new CreateManualExpertRequest(
@@ -99,7 +106,8 @@ public class DigitalExpertController {
                         prompt,
                         expertType,
                         parseMcpsJson(mcpsJson),
-                        autoRelease
+                        autoRelease,
+                        agentIds
                 ),
                 skillFiles
         ));
