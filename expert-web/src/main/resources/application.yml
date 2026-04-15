@@ -20,7 +20,6 @@ spring:
       mode: always
       schema-locations:
         - classpath:schema.sql
-        - classpath:conversation-schema.sql
   servlet:
     multipart:
       max-file-size: 1024MB
