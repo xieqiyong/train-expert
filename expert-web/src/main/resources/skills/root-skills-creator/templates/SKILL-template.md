@@ -1,6 +1,6 @@
 ---
 name: {skill-name}
-description: 提供 {项目名} 多版本架构认知、智能问数、故障排查与巡检能力。Use when answering architecture questions, querying data, troubleshooting, or inspecting this project with versioned docs, entity models, and static source snapshots.
+description: 提供 {项目名} 多版本架构认知、智能问数、故障排查与巡检能力。{附加描述}
 ---
 
 # {项目名} Skill

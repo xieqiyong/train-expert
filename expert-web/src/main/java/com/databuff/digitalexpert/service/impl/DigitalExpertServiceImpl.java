@@ -28,6 +28,7 @@ import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
+import com.databuff.digitalexpert.dao.entity.AgentSkillBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
@@ -36,6 +37,8 @@ import com.databuff.digitalexpert.dao.entity.ExpertSkillBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertStaticPackageBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertAgentBindingEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
+import com.databuff.digitalexpert.dao.entity.SkillPackageEntity;
+import com.databuff.digitalexpert.dao.entity.StaticPackageEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.ExpertSource;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
@@ -45,6 +48,7 @@ import com.databuff.digitalexpert.dao.enums.ReleaseTaskStatus;
 import com.databuff.digitalexpert.dao.enums.TrainingSourceType;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;
 import com.databuff.digitalexpert.dao.mapper.AgentExpertBindingMapper;
+import com.databuff.digitalexpert.dao.mapper.AgentSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.AiAgentMapper;
 import com.databuff.digitalexpert.dao.mapper.DigitalExpertMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertMcpBindingMapper;
@@ -53,6 +57,8 @@ import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertAgentBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
+import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
+import com.databuff.digitalexpert.dao.mapper.StaticPackageMapper;
 import com.databuff.digitalexpert.service.DigitalExpertService;
 import com.databuff.digitalexpert.service.AgentDeploymentService;
 import com.databuff.digitalexpert.service.AgentRuntimeConfigService;
@@ -105,9 +111,15 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     @Autowired
     private ExpertStaticPackageBindingMapper expertStaticPackageBindingMapper;
     @Autowired
+    private SkillPackageMapper skillPackageMapper;
+    @Autowired
+    private StaticPackageMapper staticPackageMapper;
+    @Autowired
     private AiAgentMapper aiAgentMapper;
     @Autowired
     private AgentExpertBindingMapper agentExpertBindingMapper;
+    @Autowired
+    private AgentSkillBindingMapper agentSkillBindingMapper;
     @Autowired
     private ExpertMcpBindingMapper expertMcpBindingMapper;
     @Autowired
@@ -601,6 +613,24 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             );
         }
 
+        List<Long> skillIds = expertSkillBindingMapper.selectList(
+                        new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                                .eq(ExpertSkillBindingEntity::getExpertId, expertId)
+                                .orderByAsc(ExpertSkillBindingEntity::getSortNo, ExpertSkillBindingEntity::getId)
+                ).stream()
+                .map(ExpertSkillBindingEntity::getSkillId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<Long> staticPackageIds = expertStaticPackageBindingMapper.selectList(
+                        new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                                .eq(ExpertStaticPackageBindingEntity::getExpertId, expertId)
+                                .orderByAsc(ExpertStaticPackageBindingEntity::getSortNo, ExpertStaticPackageBindingEntity::getId)
+                ).stream()
+                .map(ExpertStaticPackageBindingEntity::getStaticPackageId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
         List<Long> affectedAgentIds = agentExpertBindingMapper.selectList(
                         new LambdaQueryWrapper<AgentExpertBindingEntity>()
                                 .eq(AgentExpertBindingEntity::getExpertId, expertId)
@@ -627,9 +657,12 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 .eq(ExpertTrainingTaskEntity::getExpertId, expertId));
         digitalExpertMapper.deleteById(expertId);
 
+        cleanupOrphanSkillPackages(skillIds);
+        cleanupOrphanStaticPackages(staticPackageIds);
         deleteExpertStorage(expertId);
         for (Long agentId : affectedAgentIds) {
             agentDeploymentService.refreshAgent(agentId);
+            agentRuntimeConfigService.refreshAgentConfig(agentId);
         }
         return true;
     }
@@ -695,6 +728,62 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
     private void deleteExpertStorage(Long expertId) {
         sharedStorageService.deleteRecursively(sharedStorageService.resolveExpertRoot(expertId));
         deleteTrainingOutputDirectory(expertId);
+    }
+
+    private void cleanupOrphanSkillPackages(List<Long> skillIds) {
+        if (skillIds == null || skillIds.isEmpty()) {
+            return;
+        }
+        for (Long skillId : skillIds) {
+            if (skillId == null || hasSkillReferences(skillId)) {
+                continue;
+            }
+            SkillPackageEntity skillPackage = skillPackageMapper.selectById(skillId);
+            if (skillPackage == null) {
+                continue;
+            }
+            skillPackageMapper.deleteById(skillId);
+            sharedStorageService.deleteRecursively(sharedStorageService.resolveSkillDirectory(skillId));
+        }
+    }
+
+    private void cleanupOrphanStaticPackages(List<Long> staticPackageIds) {
+        if (staticPackageIds == null || staticPackageIds.isEmpty()) {
+            return;
+        }
+        for (Long staticPackageId : staticPackageIds) {
+            if (staticPackageId == null) {
+                continue;
+            }
+            Long referenceCount = expertStaticPackageBindingMapper.selectCount(
+                    new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                            .eq(ExpertStaticPackageBindingEntity::getStaticPackageId, staticPackageId)
+            );
+            if (referenceCount != null && referenceCount > 0) {
+                continue;
+            }
+            StaticPackageEntity staticPackage = staticPackageMapper.selectById(staticPackageId);
+            if (staticPackage == null) {
+                continue;
+            }
+            staticPackageMapper.deleteById(staticPackageId);
+            sharedStorageService.deleteRecursively(sharedStorageService.resolveStaticPackageDirectory(staticPackageId));
+        }
+    }
+
+    private boolean hasSkillReferences(Long skillId) {
+        Long expertReferenceCount = expertSkillBindingMapper.selectCount(
+                new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                        .eq(ExpertSkillBindingEntity::getSkillId, skillId)
+        );
+        if (expertReferenceCount != null && expertReferenceCount > 0) {
+            return true;
+        }
+        Long agentReferenceCount = agentSkillBindingMapper.selectCount(
+                new LambdaQueryWrapper<AgentSkillBindingEntity>()
+                        .eq(AgentSkillBindingEntity::getSkillId, skillId)
+        );
+        return agentReferenceCount != null && agentReferenceCount > 0;
     }
 
     private void deleteTrainingOutputDirectory(Long expertId) {

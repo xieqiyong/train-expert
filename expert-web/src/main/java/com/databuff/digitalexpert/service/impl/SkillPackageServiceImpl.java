@@ -39,8 +39,9 @@ public class SkillPackageServiceImpl implements SkillPackageService {
 
         LocalDateTime now = LocalDateTime.now();
         SkillPackageEntity entity = new SkillPackageEntity();
-        entity.setName(metadata.name());
-        entity.setDescription(metadata.description());
+        // 剔除名称和描述两边的双引号或者空格
+        entity.setName(metadata.name().trim());
+        entity.setDescription(metadata.description().trim());
         entity.setPackageName(packageName);
         entity.setChecksum(zipArchiveService.sha256Hex(archiveBytes));
         entity.setStatus(PackageStatus.ACTIVE.name());
