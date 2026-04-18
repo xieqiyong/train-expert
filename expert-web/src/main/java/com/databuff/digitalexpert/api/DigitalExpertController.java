@@ -19,10 +19,12 @@ import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
+import com.databuff.digitalexpert.dao.dto.ManualUpdateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.SubmitExpertTrainingTaskRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
+import com.databuff.digitalexpert.dao.dto.UpdateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsCommand;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.response.ApiResponse;
@@ -97,7 +99,7 @@ public class DigitalExpertController {
                                                                       @RequestParam(value = "expertType", required = false) String expertType,
                                                                       @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
                                                                       @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease,
-                                                                      @RequestParam(value = "agentIds", required = false) List<Long> agentIds,
+                                                                      @RequestParam(value = "agentIdsJson", required = false) String agentIdsJson,
                                                                       @RequestPart("skillFiles") List<MultipartFile> skillFiles) {
         return ApiResponse.success(digitalExpertService.createManualExpert(
                 new CreateManualExpertRequest(
@@ -107,7 +109,28 @@ public class DigitalExpertController {
                         expertType,
                         parseMcpsJson(mcpsJson),
                         autoRelease,
-                        agentIds
+                        parseAgentIdsJson(agentIdsJson)
+                ),
+                skillFiles
+        ));
+    }
+
+    @PostMapping(value = "/manual/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ManualUpdateExpertResponse> updateManualExpert(@RequestParam("expertId") Long expertId,
+                                                                      @RequestParam("name") String name,
+                                                                      @RequestParam(value = "description", required = false) String description,
+                                                                      @RequestParam(value = "prompt", required = false) String prompt,
+                                                                      @RequestParam(value = "expertType", required = false) String expertType,
+                                                                      @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
+                                                                      @RequestPart(value = "skillFiles", required = false) List<MultipartFile> skillFiles) {
+        return ApiResponse.success(digitalExpertService.updateManualExpert(
+                new UpdateManualExpertRequest(
+                        expertId,
+                        name,
+                        description,
+                        prompt,
+                        expertType,
+                        parseNullableMcpsJson(mcpsJson)
                 ),
                 skillFiles
         ));
@@ -255,6 +278,25 @@ public class DigitalExpertController {
             return result == null ? List.of() : result;
         } catch (Exception ex) {
             throw BusinessException.badRequest(ErrorCode.MCP_BINDING_INVALID, "MCP 配置 JSON 格式不正确");
+        }
+    }
+
+    private List<McpBindingRequest> parseNullableMcpsJson(String mcpsJson) {
+        if (mcpsJson == null) {
+            return null;
+        }
+        return parseMcpsJson(mcpsJson);
+    }
+
+    private List<Long> parseAgentIdsJson(String agentIdsJson) {
+        if (agentIdsJson == null || agentIdsJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<Long> result = JSON.parseArray(agentIdsJson, Long.class);
+            return result == null ? List.of() : result;
+        } catch (Exception ex) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "智能体 ID JSON 格式不正确");
         }
     }
 }

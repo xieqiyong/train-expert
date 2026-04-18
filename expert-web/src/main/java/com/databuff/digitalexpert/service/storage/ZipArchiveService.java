@@ -407,9 +407,24 @@ public class ZipArchiveService {
     private String extractMetadata(Pattern pattern, String content) {
         Matcher matcher = pattern.matcher(content);
         if (matcher.find()) {
-            return matcher.group(1).trim();
+            return normalizeMetadataValue(matcher.group(1));
         }
         return null;
+    }
+
+    private String normalizeMetadataValue(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        String normalized = rawValue.trim();
+        if (normalized.length() >= 2) {
+            boolean wrappedByDoubleQuotes = normalized.startsWith("\"") && normalized.endsWith("\"");
+            boolean wrappedBySingleQuotes = normalized.startsWith("'") && normalized.endsWith("'");
+            if (wrappedByDoubleQuotes || wrappedBySingleQuotes) {
+                normalized = normalized.substring(1, normalized.length() - 1).trim();
+            }
+        }
+        return normalized;
     }
 
     private String toHex(byte[] bytes) {

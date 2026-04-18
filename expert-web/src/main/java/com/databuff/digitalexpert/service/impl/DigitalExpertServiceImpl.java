@@ -10,6 +10,7 @@ import com.databuff.digitalexpert.dao.dto.BindExpertAgentsCommand;
 import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
 import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertConfigMcpResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertConfigResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertConfigSkillResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertConfigStaticPackageResponse;
@@ -18,6 +19,7 @@ import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
+import com.databuff.digitalexpert.dao.dto.ManualUpdateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.dto.StaticPackageResponse;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
@@ -27,6 +29,7 @@ import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
 import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
+import com.databuff.digitalexpert.dao.dto.UpdateManualExpertRequest;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AgentSkillBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
@@ -350,6 +353,64 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
 
     @Override
     @Transactional
+    public ManualUpdateExpertResponse updateManualExpert(UpdateManualExpertRequest request, List<MultipartFile> skillFiles) {
+        if (request == null) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "鎵嬪伐涓撳淇敼璇锋眰涓嶈兘涓虹┖");
+        }
+        DigitalExpertEntity expert = expertConfigService.requireExpert(request.expertId());
+        ensureExpertEditable(expert);
+
+        ExpertConfigResponse currentConfig = expertConfigService.getConfig(request.expertId());
+        String aliasName = normalizeOptionalText(expert.getAliasName());
+        if (aliasName != null && aliasName.equals(expert.getName())) {
+            aliasName = null;
+        }
+        ExpertSummaryResponse updatedExpert = updateExpert(new UpdateExpertCommand(
+                request.expertId(),
+                request.name(),
+                aliasName,
+                request.description(),
+                request.prompt(),
+                request.expertType()
+        ));
+
+        List<MultipartFile> normalizedFiles = normalizeSkillFiles(skillFiles);
+        boolean replaceSkills = !normalizedFiles.isEmpty();
+        boolean replaceMcps = request.mcps() != null;
+        if ((replaceSkills || replaceMcps) && ExpertStatus.DISABLED.name().equals(expert.getStatus())) {
+            throw BusinessException.conflict(ErrorCode.EXPERT_DISABLED, "涓撳宸茶绂佺敤: " + request.expertId());
+        }
+
+        List<SkillPackageResponse> uploadedSkills = new ArrayList<>();
+        List<Long> targetSkillIds = replaceSkills ? uploadManualUpdateSkills(normalizedFiles, uploadedSkills) : extractSkillIds(currentConfig);
+        List<Long> targetStaticPackageIds = extractStaticPackageIds(currentConfig);
+        List<McpBindingRequest> targetMcps = replaceMcps
+                ? normalizeMcps(request.mcps())
+                : toMcpBindingRequests(currentConfig.mcps());
+
+        boolean bindingChanged = (replaceSkills || replaceMcps)
+                && hasBindingChanges(currentConfig, targetSkillIds, targetStaticPackageIds, targetMcps);
+        if (bindingChanged) {
+            List<Long> previousSkillIds = extractSkillIds(currentConfig);
+            replaceBindings(
+                    request.expertId(),
+                    new UpdateExpertBindingsRequest(targetSkillIds, targetStaticPackageIds, targetMcps),
+                    false
+            );
+            cleanupOrphanSkillPackages(previousSkillIds.stream()
+                    .filter(skillId -> !targetSkillIds.contains(skillId))
+                    .toList());
+        }
+
+        ExpertReleaseTaskResponse releaseTask = null;
+        if (bindingChanged && ExpertStatus.STARTED.name().equals(expert.getStatus())) {
+            releaseTask = expertReleaseService.submitReleaseTask(request.expertId());
+        }
+        return new ManualUpdateExpertResponse(updatedExpert, List.copyOf(uploadedSkills), releaseTask);
+    }
+
+    @Override
+    @Transactional
     public ExpertBindingUpdateResponse bindAgents(BindExpertAgentsCommand request) {
         if (request == null) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "绑定请求不能为空");
@@ -594,6 +655,139 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 .set(DigitalExpertEntity::getUpdatedAt, now));
         agentRuntimeConfigService.refreshAgentsByExpert(expertId);
         return new ExpertBindingUpdateResponse(expertId, true);
+    }
+
+    private List<Long> uploadManualUpdateSkills(List<MultipartFile> skillFiles, List<SkillPackageResponse> uploadedSkills) {
+        List<Long> skillIds = new ArrayList<>();
+        if (skillFiles == null || skillFiles.isEmpty()) {
+            return skillIds;
+        }
+        for (MultipartFile skillFile : skillFiles) {
+            SkillPackageResponse uploadedSkill = skillPackageService.upload(skillFile);
+            uploadedSkills.add(uploadedSkill);
+            skillIds.add(uploadedSkill.id());
+        }
+        return List.copyOf(skillIds);
+    }
+
+    private void replaceBindings(Long expertId, UpdateExpertBindingsRequest request, boolean refreshAgentsByExpert) {
+        List<Long> skillIds = deduplicateIds(request == null ? null : request.skills());
+        List<Long> staticPackageIds = deduplicateIds(request == null ? null : request.staticPackages());
+        List<McpBindingRequest> mcps = normalizeMcps(request == null ? null : request.mcps());
+
+        for (Long skillId : skillIds) {
+            skillPackageService.requireById(skillId);
+        }
+        for (Long staticPackageId : staticPackageIds) {
+            staticPackageService.requireById(staticPackageId);
+        }
+        validateMcpBindings(mcps);
+
+        expertSkillBindingMapper.delete(new LambdaQueryWrapper<ExpertSkillBindingEntity>()
+                .eq(ExpertSkillBindingEntity::getExpertId, expertId));
+        expertStaticPackageBindingMapper.delete(new LambdaQueryWrapper<ExpertStaticPackageBindingEntity>()
+                .eq(ExpertStaticPackageBindingEntity::getExpertId, expertId));
+        expertMcpBindingMapper.delete(new LambdaQueryWrapper<ExpertMcpBindingEntity>()
+                .eq(ExpertMcpBindingEntity::getExpertId, expertId));
+
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 0; i < skillIds.size(); i++) {
+            ExpertSkillBindingEntity entity = new ExpertSkillBindingEntity();
+            entity.setExpertId(expertId);
+            entity.setSkillId(skillIds.get(i));
+            entity.setSortNo(i + 1);
+            entity.setCreatedAt(now);
+            expertSkillBindingMapper.insert(entity);
+        }
+        for (int i = 0; i < staticPackageIds.size(); i++) {
+            ExpertStaticPackageBindingEntity entity = new ExpertStaticPackageBindingEntity();
+            entity.setExpertId(expertId);
+            entity.setStaticPackageId(staticPackageIds.get(i));
+            entity.setSortNo(i + 1);
+            entity.setCreatedAt(now);
+            expertStaticPackageBindingMapper.insert(entity);
+        }
+        for (McpBindingRequest mcp : mcps) {
+            ExpertMcpBindingEntity entity = new ExpertMcpBindingEntity();
+            entity.setExpertId(expertId);
+            entity.setBindingName(mcp.bindingName());
+            entity.setMcpUrl(mcp.mcpUrl());
+            entity.setToolWhitelistJson(writeWhitelist(mcp.toolWhitelist()));
+            entity.setCreatedAt(now);
+            entity.setUpdatedAt(now);
+            expertMcpBindingMapper.insert(entity);
+        }
+
+        digitalExpertMapper.update(null, new LambdaUpdateWrapper<DigitalExpertEntity>()
+                .eq(DigitalExpertEntity::getId, expertId)
+                .set(DigitalExpertEntity::getUpdatedAt, now));
+        if (refreshAgentsByExpert) {
+            agentRuntimeConfigService.refreshAgentsByExpert(expertId);
+        }
+    }
+
+    private List<Long> extractSkillIds(ExpertConfigResponse config) {
+        if (config == null || config.skills() == null || config.skills().isEmpty()) {
+            return List.of();
+        }
+        return config.skills().stream()
+                .map(ExpertConfigSkillResponse::skillId)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<Long> extractStaticPackageIds(ExpertConfigResponse config) {
+        if (config == null || config.staticPackages() == null || config.staticPackages().isEmpty()) {
+            return List.of();
+        }
+        return config.staticPackages().stream()
+                .map(ExpertConfigStaticPackageResponse::staticPackageId)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<McpBindingRequest> toMcpBindingRequests(List<ExpertConfigMcpResponse> mcps) {
+        if (mcps == null || mcps.isEmpty()) {
+            return List.of();
+        }
+        List<McpBindingRequest> requests = new ArrayList<>();
+        for (ExpertConfigMcpResponse mcp : mcps) {
+            if (mcp == null) {
+                continue;
+            }
+            requests.add(new McpBindingRequest(
+                    mcp.bindingName(),
+                    mcp.mcpUrl(),
+                    mcp.toolWhitelist()
+            ));
+        }
+        return normalizeMcps(requests);
+    }
+
+    private boolean hasBindingChanges(ExpertConfigResponse currentConfig,
+                                      List<Long> skillIds,
+                                      List<Long> staticPackageIds,
+                                      List<McpBindingRequest> mcps) {
+        if (!extractSkillIds(currentConfig).equals(deduplicateIds(skillIds))) {
+            return true;
+        }
+        if (!extractStaticPackageIds(currentConfig).equals(deduplicateIds(staticPackageIds))) {
+            return true;
+        }
+        List<String> currentMcps = normalizeComparableMcps(toMcpBindingRequests(currentConfig == null ? null : currentConfig.mcps()));
+        List<String> targetMcps = normalizeComparableMcps(mcps);
+        return !currentMcps.equals(targetMcps);
+    }
+
+    private List<String> normalizeComparableMcps(List<McpBindingRequest> mcps) {
+        return normalizeMcps(mcps).stream()
+                .map(mcp -> JSON.toJSONString(List.of(
+                        mcp.bindingName(),
+                        mcp.mcpUrl(),
+                        mcp.toolWhitelist() == null ? List.of() : mcp.toolWhitelist()
+                )))
+                .sorted()
+                .toList();
     }
 
     @Override

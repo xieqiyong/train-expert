@@ -9,9 +9,11 @@ import com.databuff.digitalexpert.dao.dto.ForwardTrainingSubmitResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
 import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
 import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
+import com.databuff.digitalexpert.dao.dto.ManualUpdateExpertResponse;
 import com.databuff.digitalexpert.dao.dto.SubmitForwardTrainingRequest;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
 import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsRequest;
+import com.databuff.digitalexpert.dao.dto.UpdateManualExpertRequest;
 import com.databuff.digitalexpert.dao.enums.ExpertSource;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
 import com.databuff.digitalexpert.dao.enums.ExpertStatusOperation;
@@ -33,6 +35,8 @@ public interface DigitalExpertService {
     List<AgentBindingGroupResponse> listAgentBindings();
 
     ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles);
+
+    ManualUpdateExpertResponse updateManualExpert(UpdateManualExpertRequest request, List<MultipartFile> skillFiles);
 
     ExpertBindingUpdateResponse bindAgents(BindExpertAgentsCommand request);
 
