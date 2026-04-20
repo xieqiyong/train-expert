@@ -9,6 +9,7 @@ public record UpdateManualExpertRequest(
         @NotNull Long expertId,
         @NotBlank String name,
         String description,
+        String iconUrl,
         String prompt,
         String expertType,
         List<@Valid McpBindingRequest> mcps

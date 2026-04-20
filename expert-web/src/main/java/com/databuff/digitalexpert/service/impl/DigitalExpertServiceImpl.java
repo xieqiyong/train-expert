@@ -174,6 +174,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         entity.setName(name);
         entity.setAliasName(name);
         entity.setDescription(normalizeOptionalText(request.description()));
+        entity.setIconUrl(normalizeOptionalText(request.iconUrl()));
         entity.setPrompt(normalizeOptionalText(request.prompt()));
         entity.setExpertType(resolveExpertType(request.expertType()));
         entity.setExpertSource(resolveExpertSource(expertSource));
@@ -329,7 +330,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 request.name(),
                 request.description(),
                 request.prompt(),
-                request.expertType()
+                request.expertType(),
+                request.iconUrl()
         ));
 
         List<SkillPackageResponse> uploadedSkills = new ArrayList<>();
@@ -370,6 +372,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 request.name(),
                 aliasName,
                 request.description(),
+                request.iconUrl(),
                 request.prompt(),
                 request.expertType()
         ));
@@ -517,7 +520,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                     config.name(),
                     config.description(),
                     config.prompt(),
-                    config.expertType()
+                    config.expertType(),
+                    config.iconUrl()
             ));
             expert = syncImportedExpertAlias(expert.id(), config.aliasName());
 
@@ -587,6 +591,9 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
         expert.setName(name);
         expert.setAliasName(aliasName);
         expert.setDescription(normalizeOptionalText(request.description()));
+        if (request.iconUrl() != null) {
+            expert.setIconUrl(normalizeOptionalText(request.iconUrl()));
+        }
         expert.setPrompt(normalizeOptionalText(request.prompt()));
         expert.setExpertType(resolveExpertType(request.expertType()));
         expert.setUpdatedAt(LocalDateTime.now());
@@ -1023,7 +1030,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                     name,
                     description,
                     prompt,
-                    expertType
+                    expertType,
+                    null
             ), ExpertSource.CREATED);
             return new ForwardExpertResolution(createdExpert, true);
         }
@@ -1380,6 +1388,7 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 entity.getName(),
                 entity.getAliasName(),
                 entity.getDescription(),
+                entity.getIconUrl(),
                 entity.getExpertType(),
                 entity.getExpertSource(),
                 entity.getStatus(),

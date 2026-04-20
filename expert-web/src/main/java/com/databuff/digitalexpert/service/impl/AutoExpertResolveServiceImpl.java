@@ -46,7 +46,7 @@ public class AutoExpertResolveServiceImpl implements AutoExpertResolveService {
 
         try {
             ExpertSummaryResponse expert = digitalExpertService.createExpert(
-                    new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null, ExpertType.SERVICE.name()),
+                    new CreateExpertRequest(normalizedServiceName, normalizedServiceName, null, ExpertType.SERVICE.name(), null),
                     ExpertSource.GENERATED
             );
             syncAutoExpertFields(expert.id(), null, expert.aliasName(), originalServiceName, normalizedServiceName, true);

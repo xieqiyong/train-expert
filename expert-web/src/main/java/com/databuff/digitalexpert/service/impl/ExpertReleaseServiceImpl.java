@@ -329,6 +329,7 @@ public class ExpertReleaseServiceImpl implements ExpertReleaseService {
                 expert.getName(),
                 expert.getAliasName(),
                 expert.getDescription(),
+                expert.getIconUrl(),
                 expert.getPrompt(),
                 expert.getExpertType(),
                 expert.getExpertSource(),

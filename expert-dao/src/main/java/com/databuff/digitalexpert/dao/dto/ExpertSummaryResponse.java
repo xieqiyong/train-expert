@@ -5,6 +5,7 @@ public record ExpertSummaryResponse(
         String name,
         String aliasName,
         String description,
+        String iconUrl,
         String expertType,
         String expertSource,
         String status,

@@ -7,6 +7,7 @@ public record ExpertConfigResponse(
         String name,
         String aliasName,
         String description,
+        String iconUrl,
         String prompt,
         String expertType,
         String expertSource,

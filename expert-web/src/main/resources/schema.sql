@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `de_digital_expert` (
   `alias_name` varchar(128) DEFAULT NULL COMMENT '专家别名',
   `app_name` varchar(512) DEFAULT NULL COMMENT 'app_info 原始服务名',
   `description` varchar(512) DEFAULT NULL COMMENT '专家描述',
+  `icon_url` varchar(1024) DEFAULT NULL COMMENT '专家图标访问地址',
   `prompt` varchar(512) DEFAULT NULL COMMENT '专家提示词',
   `expert_type` varchar(32) NOT NULL DEFAULT 'SERVICE' COMMENT '专家类型：SERVICE/BUILTIN/FAULT_ANALYSIS',
   `status` varchar(32) NOT NULL COMMENT '专家状态：DRAFT/TRAINING/STARTED/DISABLED',

@@ -19,6 +19,8 @@ public class DigitalExpertEntity {
     @TableField("app_name")
     private String appName;
     private String description;
+    @TableField("icon_url")
+    private String iconUrl;
     private String prompt;
     private String expertType;
     @TableField("expert_source")

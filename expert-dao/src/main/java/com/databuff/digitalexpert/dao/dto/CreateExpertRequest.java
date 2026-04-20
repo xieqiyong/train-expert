@@ -6,6 +6,7 @@ public record CreateExpertRequest(
         @NotBlank String name,
         String description,
         String prompt,
-        String expertType
+        String expertType,
+        String iconUrl
 ) {
 }

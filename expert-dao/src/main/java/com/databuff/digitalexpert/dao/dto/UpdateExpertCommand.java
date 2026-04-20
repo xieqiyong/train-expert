@@ -8,6 +8,7 @@ public record UpdateExpertCommand(
         @NotBlank String name,
         String aliasName,
         String description,
+        String iconUrl,
         String prompt,
         String expertType
 ) {

@@ -94,19 +94,21 @@ public class DigitalExpertController {
 
     @PostMapping(value = "/manual/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<ManualCreateExpertResponse> createManualExpert(@RequestParam("name") String name,
-                                                                      @RequestParam(value = "description", required = false) String description,
-                                                                      @RequestParam(value = "prompt", required = false) String prompt,
-                                                                      @RequestParam(value = "expertType", required = false) String expertType,
-                                                                      @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
-                                                                      @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease,
-                                                                      @RequestParam(value = "agentIdsJson", required = false) String agentIdsJson,
-                                                                      @RequestPart("skillFiles") List<MultipartFile> skillFiles) {
+                                                                       @RequestParam(value = "description", required = false) String description,
+                                                                       @RequestParam(value = "prompt", required = false) String prompt,
+                                                                       @RequestParam(value = "expertType", required = false) String expertType,
+                                                                       @RequestParam(value = "iconUrl", required = false) String iconUrl,
+                                                                       @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
+                                                                       @RequestParam(value = "autoRelease", defaultValue = "true") boolean autoRelease,
+                                                                       @RequestParam(value = "agentIdsJson", required = false) String agentIdsJson,
+                                                                       @RequestPart("skillFiles") List<MultipartFile> skillFiles) {
         return ApiResponse.success(digitalExpertService.createManualExpert(
                 new CreateManualExpertRequest(
                         name,
                         description,
                         prompt,
                         expertType,
+                        iconUrl,
                         parseMcpsJson(mcpsJson),
                         autoRelease,
                         parseAgentIdsJson(agentIdsJson)
@@ -117,17 +119,19 @@ public class DigitalExpertController {
 
     @PostMapping(value = "/manual/update", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<ManualUpdateExpertResponse> updateManualExpert(@RequestParam("expertId") Long expertId,
-                                                                      @RequestParam("name") String name,
-                                                                      @RequestParam(value = "description", required = false) String description,
-                                                                      @RequestParam(value = "prompt", required = false) String prompt,
-                                                                      @RequestParam(value = "expertType", required = false) String expertType,
-                                                                      @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
-                                                                      @RequestPart(value = "skillFiles", required = false) List<MultipartFile> skillFiles) {
+                                                                       @RequestParam("name") String name,
+                                                                       @RequestParam(value = "description", required = false) String description,
+                                                                       @RequestParam(value = "iconUrl", required = false) String iconUrl,
+                                                                       @RequestParam(value = "prompt", required = false) String prompt,
+                                                                       @RequestParam(value = "expertType", required = false) String expertType,
+                                                                       @RequestParam(value = "mcpsJson", required = false) String mcpsJson,
+                                                                       @RequestPart(value = "skillFiles", required = false) List<MultipartFile> skillFiles) {
         return ApiResponse.success(digitalExpertService.updateManualExpert(
                 new UpdateManualExpertRequest(
                         expertId,
                         name,
                         description,
+                        iconUrl,
                         prompt,
                         expertType,
                         parseNullableMcpsJson(mcpsJson)
