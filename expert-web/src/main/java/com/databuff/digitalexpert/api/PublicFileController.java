@@ -37,8 +37,8 @@ public class PublicFileController {
     }
 
     @GetMapping("/public/images/{date}/{fileName:.+}")
-    public ResponseEntity<FileSystemResource> getPublicImage(@PathVariable String date,
-                                                             @PathVariable String fileName) {
+    public ResponseEntity<FileSystemResource> getPublicImage(@PathVariable("date") String date,
+                                                             @PathVariable("fileName") String fileName) {
         PublicImageResource imageResource = publicFileService.loadImage(date, fileName);
         FileSystemResource resource = new FileSystemResource(imageResource.path());
         try {
