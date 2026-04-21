@@ -22,7 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class PublicFileServiceImpl implements PublicFileService {
 
     private static final long MAX_IMAGE_SIZE = 5L * 1024L * 1024L;
-    private static final String PUBLIC_IMAGE_PREFIX = "/api/v1/files/public/images";
+    private static final String PUBLIC_IMAGE_PREFIX = "/expert-web/api/v1/files/public/images";
     private static final Pattern DATE_PATTERN = Pattern.compile("\\d{8}");
     private static final Pattern FILE_NAME_PATTERN =
             Pattern.compile("[a-f0-9\\-]{36}\\.(png|jpg|jpeg|webp)");
