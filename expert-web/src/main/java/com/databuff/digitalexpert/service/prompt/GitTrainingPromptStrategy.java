@@ -58,7 +58,8 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("8. Git 仓库首次拉取后，后续优先复用本地仓库，先执行 git fetch --all --prune --tags，再切换到指定版本或分支，不要每次重新全量 clone。\n")
                 .append("9. 切换分支前必须确保工作区干净；若存在未提交修改、脏文件或未跟踪文件，先清理再切换，避免分支冲突影响训练结果。\n")
                 .append("10. 优先阅读 README、构建脚本、配置文件、核心模块源码和业务文档，提炼业务能力、关键流程、边界条件与可复用操作。\n")
-                .append("11. 不要把整个仓库复制到版本目录或 static_package，只保留训练产物和必要的可读静态材料。\n");
+                .append("11. 不要把整个仓库复制到版本目录或 static_package，只保留训练产物和必要的可读静态材料。\n")
+                .append("12. 如果找不到分支或者代码，直接退出，禁止推演查找或自行判断。\n");
         return builder.toString();
     }
 

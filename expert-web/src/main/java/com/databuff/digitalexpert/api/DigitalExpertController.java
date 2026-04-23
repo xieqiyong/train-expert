@@ -37,13 +37,17 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -150,7 +154,7 @@ public class DigitalExpertController {
             @RequestParam(value = "sourceValue", required = false) String sourceValue,
             @RequestParam(value = "sourceVersion", required = false) String sourceVersion,
             @RequestParam(value = "trainingGoal", required = false) String trainingGoal,
-            @RequestParam(value = "attachmentIdsJson", required = false) String attachmentIdsJson,
+            @RequestParam MultiValueMap<String, String> requestParams,
             @RequestPart(value = "docPackageFile", required = false) MultipartFile docPackageFile) {
         if (docPackageFile != null && !docPackageFile.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "当前版本暂不支持文档压缩包正向训练");
@@ -165,7 +169,7 @@ public class DigitalExpertController {
                         sourceValue,
                         sourceVersion,
                         trainingGoal,
-                        parseAttachmentIdsJson(attachmentIdsJson)
+                        parseAttachmentIds(requestParams)
                 )
         ));
     }
@@ -306,13 +310,50 @@ public class DigitalExpertController {
         }
     }
 
-    private List<Long> parseAttachmentIdsJson(String attachmentIdsJson) {
-        if (attachmentIdsJson == null || attachmentIdsJson.isBlank()) {
+    private List<Long> parseAttachmentIds(MultiValueMap<String, String> requestParams) {
+        if (requestParams == null || requestParams.isEmpty()) {
             return List.of();
         }
+        List<String> rawValues = new ArrayList<>();
+        addAll(rawValues, requestParams.get("attachmentIdsJson"));
+        addAll(rawValues, requestParams.get("attachmentIds"));
+        if (rawValues.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> result = new LinkedHashSet<>();
+        for (String rawValue : rawValues) {
+            if (rawValue == null || rawValue.isBlank()) {
+                continue;
+            }
+            parseAttachmentIdValue(rawValue, result);
+        }
+        return List.copyOf(result);
+    }
+
+    private void addAll(List<String> target, List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        target.addAll(values);
+    }
+
+    private void parseAttachmentIdValue(String rawValue, Set<Long> result) {
+        String value = rawValue.trim();
         try {
-            List<Long> result = JSON.parseArray(attachmentIdsJson, Long.class);
-            return result == null ? List.of() : result;
+            if (value.startsWith("[")) {
+                List<Long> ids = JSON.parseArray(value, Long.class);
+                if (ids != null) {
+                    ids.stream()
+                            .filter(id -> id != null)
+                            .forEach(result::add);
+                }
+                return;
+            }
+            for (String item : value.split(",")) {
+                if (!item.isBlank()) {
+                    result.add(Long.parseLong(item.trim()));
+                }
+            }
         } catch (Exception ex) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "附件资源 ID JSON 格式不正确");
         }

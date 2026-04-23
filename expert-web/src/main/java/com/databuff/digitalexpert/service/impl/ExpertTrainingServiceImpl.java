@@ -783,14 +783,25 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         }
         List<String> result = new ArrayList<>();
         for (TrainingSourceRequest source : sources) {
-            AppInfoSource appInfoSource = resolveAppInfoSource(source);
+            if (source == null || !StringUtils.hasText(source.sourceType())
+                    || !StringUtils.hasText(source.sourceValue())) {
+                continue;
+            }
+            AppInfoSource appInfoSource = isAttachmentSource(source) ? null : resolveAppInfoSource(source);
             if (appInfoSource != null) {
                 result.add(appInfoSource.jarsDirectory().toString());
-            } else {
+            } else if (shouldSubmitAsProxyFile(source)) {
                 result.add(source.sourceValue());
             }
         }
         return result;
+    }
+
+    private boolean shouldSubmitAsProxyFile(TrainingSourceRequest source) {
+        String sourceType = source.sourceType().trim().toUpperCase(Locale.ROOT);
+        return TrainingSourceType.LOCAL_PATH.name().equals(sourceType)
+                || TrainingSourceType.DOC_FILE.name().equals(sourceType)
+                || TrainingSourceType.DOC_PACKAGE.name().equals(sourceType);
     }
 
     private TrainingAttachmentMode resolveAttachmentMode(AppInfoSource appInfoSource) {
