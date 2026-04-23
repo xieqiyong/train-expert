@@ -374,7 +374,7 @@ webapp 类项目通常包含 15-30 个业务环节、10-20 个数据实体。若
 
 ### 阶段 1：主 Agent 执行规则
 
-0. **准备 `static_package/`（若由本流程拷贝或同步源码）**：只收录**生产/主工程**源码，**禁止**放入测试代码。须排除（按仓库结构裁剪，未列到的同类路径一并排除）：`src/test/`、`src/test/java`、`src/test/resources`、`androidTest/`、`ios/**/Tests/`、`__tests__/`、`**/test/**`（若仅为测试树）、`**/*Test.java`、`**/*Tests.java`、`**/*IT.java`、`**/*.spec.ts`、`**/*.test.ts`、`e2e/`、`fixtures/`（若仅服务测试）等。若 `static_package` 由上游产物提供，主 Agent 须确认其中**无**上述测试树后再进入扫描与写文档。
+0. **准备 `static_package/`（若由本流程拷贝或同步源码）**：**Git 训练**时，仓库检出物**必须**只放在 `{版本目录}/static_package/` 下，**禁止**在技能根目录（与 `SKILL.md` 同级）平铺 `src/`、版本子目录等——以平台训练提示（如 `GitTrainingPromptStrategy`）为准。其余情况只收录**生产/主工程**源码，**禁止**放入测试代码。须排除（按仓库结构裁剪，未列到的同类路径一并排除）：`src/test/`、`src/test/java`、`src/test/resources`、`androidTest/`、`ios/**/Tests/`、`__tests__/`、`**/test/**`（若仅为测试树）、`**/*Test.java`、`**/*Tests.java`、`**/*IT.java`、`**/*.spec.ts`、`**/*.test.ts`、`e2e/`、`fixtures/`（若仅服务测试）等。若 `static_package` 由上游产物提供，主 Agent 须确认其中**无**上述测试树后再进入扫描与写文档。
 0.5. **加载指标体系元数据**：在写 `02-领域认知/整体架构.md` 之前，扫描并阅读 `/app/upload/data`（见上文「指标体系元数据目录」）；生成环节列表时优先用元数据中的环节/模块字段与源码目录做交叉验证，并为每个环节准备好将下发给子 Agent 的指标摘录。
 1. **扫描源码根目录**：用 `find` 命令输出 `static_package/` 的实际包结构
 2. **生成 `01-项目总览/` 文档**
