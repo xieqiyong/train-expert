@@ -29,11 +29,16 @@ import com.databuff.digitalexpert.dao.mapper.ExpertSkillBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertStaticPackageBindingMapper;
 import com.databuff.digitalexpert.dao.mapper.ExpertTrainingTaskMapper;
 import com.databuff.digitalexpert.dao.mapper.SkillPackageMapper;
+import com.databuff.digitalexpert.dao.bo.TrainingAttachmentContext;
 import com.databuff.digitalexpert.service.ExpertConfigService;
 import com.databuff.digitalexpert.service.ExpertReleaseService;
 import com.databuff.digitalexpert.service.ExpertTrainingService;
 import com.databuff.digitalexpert.service.ServiceVersionSnapshotService;
 import com.databuff.digitalexpert.dao.bo.TrainingContext;
+import com.databuff.digitalexpert.dao.dto.TrainingAttachmentRef;
+import com.databuff.digitalexpert.dao.enums.TrainingAttachmentMode;
+import com.databuff.digitalexpert.dao.enums.TrainingSourceRole;
+import com.databuff.digitalexpert.service.TrainingAttachmentService;
 import com.databuff.digitalexpert.service.TrainingDispatcher;
 import com.databuff.digitalexpert.service.prompt.TrainingPromptContext;
 import com.databuff.digitalexpert.service.prompt.TrainingPromptStrategy;
@@ -99,6 +104,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     @Autowired
     private ExpertProperties properties;
     @Autowired
+    private TrainingAttachmentService trainingAttachmentService;
+    @Autowired
     private TrainingDispatcher trainingDispatcher;
     @Autowired
     private TrainingProxyClient trainingProxyClient;
@@ -128,12 +135,21 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                     "专家存在进行中的训练任务: " + expertId);
         }
 
-        List<TrainingSourceRequest> normalizedSources = normalizeSources(request.sources());
+        List<TrainingSourceRequest> mainSources = normalizeSources(request.sources());
         String taskId = AgentSessionId.generate();
-        String skillDirName = resolveSkillDirectoryName(normalizedSources, taskId, expert.getName());
-        AppInfoSource appInfoSource = findAppInfoSource(normalizedSources);
+        String skillDirName = resolveSkillDirectoryName(mainSources, taskId, expert.getName());
+        AppInfoSource appInfoSource = findAppInfoSource(mainSources);
+        List<TrainingSourceRequest> normalizedSources = appendAttachmentSources(
+                mainSources,
+                trainingAttachmentService.resolve(new TrainingAttachmentContext(
+                        resolveAttachmentMode(appInfoSource),
+                        expert,
+                        mainSources,
+                        normalizeAttachmentIds(request.attachmentIds())
+                ))
+        );
         Path skillRootDirectory = resolveSkillRootDirectory(expertId, skillDirName);
-        Path outputDirectory = resolveTrainingOutputDirectory(skillRootDirectory, expert, appInfoSource, normalizedSources);
+        Path outputDirectory = resolveTrainingOutputDirectory(skillRootDirectory, expert, appInfoSource, mainSources);
 
         LocalDateTime now = LocalDateTime.now();
         ExpertTrainingTaskEntity task = new ExpertTrainingTaskEntity();
@@ -709,6 +725,9 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     private String resolveSkillDirectoryName(List<TrainingSourceRequest> sources, String taskId, String expertName) {
         if (sources != null) {
             for (TrainingSourceRequest source : sources) {
+                if (isAttachmentSource(source)) {
+                    continue;
+                }
                 AppInfoSource appInfoSource = resolveAppInfoSource(source);
                 if (appInfoSource != null && StringUtils.hasText(appInfoSource.appName())) {
                     String normalized = normalizeSkillDirectoryName(appInfoSource.appName());
@@ -734,7 +753,8 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
     }
 
     private String extractSourceFileName(TrainingSourceRequest source) {
-        if (source == null || !StringUtils.hasText(source.sourceType()) || !StringUtils.hasText(source.sourceValue())) {
+        if (source == null || isAttachmentSource(source)
+                || !StringUtils.hasText(source.sourceType()) || !StringUtils.hasText(source.sourceValue())) {
             return null;
         }
         if (TrainingSourceType.GIT_URL.name().equals(source.sourceType())) {
@@ -773,11 +793,74 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         return result;
     }
 
+    private TrainingAttachmentMode resolveAttachmentMode(AppInfoSource appInfoSource) {
+        return appInfoSource == null ? TrainingAttachmentMode.FORWARD : TrainingAttachmentMode.REVERSE;
+    }
+
+    private List<Long> normalizeAttachmentIds(List<Long> attachmentIds) {
+        if (attachmentIds == null || attachmentIds.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Long> values = new LinkedHashSet<>();
+        for (Long attachmentId : attachmentIds) {
+            if (attachmentId != null) {
+                values.add(attachmentId);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private List<TrainingSourceRequest> appendAttachmentSources(List<TrainingSourceRequest> sources,
+                                                                List<TrainingAttachmentRef> attachments) {
+        List<TrainingSourceRequest> result = new ArrayList<>(sources == null ? List.of() : sources);
+        if (attachments == null || attachments.isEmpty()) {
+            return List.copyOf(result);
+        }
+        Set<String> existingAttachmentKeys = new LinkedHashSet<>();
+        for (TrainingSourceRequest source : result) {
+            if (!isAttachmentSource(source)) {
+                continue;
+            }
+            String key = source.attachmentId() != null
+                    ? "id:" + source.attachmentId()
+                    : "path:" + source.sourceValue();
+            existingAttachmentKeys.add(key);
+        }
+        for (TrainingAttachmentRef attachment : attachments) {
+            if (attachment == null || !StringUtils.hasText(attachment.storagePath())) {
+                continue;
+            }
+            String key = attachment.id() != null
+                    ? "id:" + attachment.id()
+                    : "path:" + attachment.storagePath();
+            if (existingAttachmentKeys.add(key)) {
+                result.add(toAttachmentSource(attachment));
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private TrainingSourceRequest toAttachmentSource(TrainingAttachmentRef attachment) {
+        return new TrainingSourceRequest(
+                attachment.resourceType(),
+                attachment.storagePath(),
+                null,
+                TrainingSourceRole.ATTACHMENT.name(),
+                attachment.id(),
+                attachment.name(),
+                attachment.usagePrompt(),
+                attachment.accessUrl()
+        );
+    }
+
     private AppInfoSource findAppInfoSource(List<TrainingSourceRequest> sources) {
         if (sources == null || sources.isEmpty()) {
             return null;
         }
         for (TrainingSourceRequest source : sources) {
+            if (isAttachmentSource(source)) {
+                continue;
+            }
             AppInfoSource appInfoSource = resolveAppInfoSource(source);
             if (appInfoSource != null) {
                 return appInfoSource;
@@ -788,6 +871,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
     private AppInfoSource resolveAppInfoSource(TrainingSourceRequest source) {
         if (source == null
+                || isAttachmentSource(source)
                 || !TrainingSourceType.LOCAL_PATH.name().equals(source.sourceType())
                 || !StringUtils.hasText(source.sourceValue())) {
             return null;
@@ -1296,7 +1380,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             return null;
         }
         for (TrainingSourceRequest source : sources) {
-            if (source == null || !StringUtils.hasText(source.sourceVersion())) {
+            if (source == null || isAttachmentSource(source) || !StringUtils.hasText(source.sourceVersion())) {
                 continue;
             }
             String normalized = normalizeVersionDirectoryName(source.sourceVersion());
@@ -1401,6 +1485,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             String type = source.sourceType() == null ? "" : source.sourceType().trim().toUpperCase(Locale.ROOT);
             String value = source.sourceValue() == null ? "" : source.sourceValue().trim();
             String version = source.sourceVersion() == null ? null : source.sourceVersion().trim();
+            String role = normalizeSourceRole(source.sourceRole());
             if (!StringUtils.hasText(type) || !StringUtils.hasText(value)) {
                 throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
                         "sourceType 和 sourceValue 不能为空");
@@ -1411,13 +1496,41 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
                         "不支持的 sourceType: " + type);
             }
-            result.add(new TrainingSourceRequest(type, value, StringUtils.hasText(version) ? version : null));
+            result.add(new TrainingSourceRequest(
+                    type,
+                    value,
+                    StringUtils.hasText(version) ? version : null,
+                    role,
+                    source.attachmentId(),
+                    normalizeNullableText(source.sourceName()),
+                    normalizeNullableText(source.usagePrompt()),
+                    normalizeNullableText(source.accessUrl())
+            ));
         }
         if (result.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST,
                     "训练源不能为空");
         }
         return result;
+    }
+
+    private String normalizeSourceRole(String sourceRole) {
+        if (!StringUtils.hasText(sourceRole)) {
+            return null;
+        }
+        String normalized = sourceRole.trim().toUpperCase(Locale.ROOT);
+        try {
+            TrainingSourceRole role = TrainingSourceRole.valueOf(normalized);
+            return TrainingSourceRole.ATTACHMENT == role ? role.name() : null;
+        } catch (IllegalArgumentException ex) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "训练源角色不支持: " + sourceRole);
+        }
+    }
+
+    private boolean isAttachmentSource(TrainingSourceRequest source) {
+        return source != null
+                && StringUtils.hasText(source.sourceRole())
+                && TrainingSourceRole.ATTACHMENT.name().equalsIgnoreCase(source.sourceRole().trim());
     }
 
     private List<TrainingSourceRequest> parseSources(String sourceManifestJson) {
@@ -1437,8 +1550,22 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
             String type = item.getString("sourceType");
             String value = item.getString("sourceValue");
             String version = item.getString("sourceVersion");
+            String role = item.getString("sourceRole");
+            Long attachmentId = item.getLong("attachmentId");
+            String sourceName = item.getString("sourceName");
+            String usagePrompt = item.getString("usagePrompt");
+            String accessUrl = item.getString("accessUrl");
             if (StringUtils.hasText(type) && StringUtils.hasText(value)) {
-                result.add(new TrainingSourceRequest(type, value, StringUtils.hasText(version) ? version : null));
+                result.add(new TrainingSourceRequest(
+                        type,
+                        value,
+                        StringUtils.hasText(version) ? version : null,
+                        StringUtils.hasText(role) ? role : null,
+                        attachmentId,
+                        StringUtils.hasText(sourceName) ? sourceName : null,
+                        StringUtils.hasText(usagePrompt) ? usagePrompt : null,
+                        StringUtils.hasText(accessUrl) ? accessUrl : null
+                ));
             }
         }
         return result;

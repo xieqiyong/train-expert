@@ -1,6 +1,7 @@
 package com.databuff.digitalexpert.service.prompt;
 
 import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
+import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -23,8 +24,9 @@ public class AppInfoTrainingPromptStrategy implements TrainingPromptStrategy {
             builder.append("输入路径: ").append(context.appInfoInputPath()).append("\n");
         } else if (context.sources() != null && !context.sources().isEmpty()) {
             builder.append("输入:\n");
-            for (int i = 0; i < context.sources().size(); i++) {
-                TrainingSourceRequest source = context.sources().get(i);
+            List<TrainingSourceRequest> sources = context.trainingSources();
+            for (int i = 0; i < sources.size(); i++) {
+                TrainingSourceRequest source = sources.get(i);
                 builder.append(i + 1)
                         .append(". [")
                         .append(source.sourceType())
@@ -36,6 +38,7 @@ public class AppInfoTrainingPromptStrategy implements TrainingPromptStrategy {
                 builder.append("\n");
             }
         }
+        context.appendAttachmentResources(builder);
 
         builder.append("技能根目录: ").append(context.skillRootDirectory()).append("\n");
         builder.append("技能文件: ").append(context.skillRootDirectory().resolve("SKILL.md")).append("\n");

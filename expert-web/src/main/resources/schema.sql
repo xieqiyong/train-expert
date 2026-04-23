@@ -143,6 +143,25 @@ CREATE TABLE IF NOT EXISTS `de_skill_package` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='技能包';
 
+-- de_attachment_resource 表定义
+CREATE TABLE IF NOT EXISTS `de_attachment_resource` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `name` varchar(128) NOT NULL COMMENT '附件名称',
+  `description` varchar(512) DEFAULT NULL COMMENT '附件描述',
+  `resource_type` varchar(64) NOT NULL COMMENT '资源类型：DOC_FILE/DOC_PACKAGE/LOCAL_PATH 等',
+  `storage_path` text NOT NULL COMMENT '附件存储路径',
+  `access_url` text DEFAULT NULL COMMENT '附件访问地址',
+  `usage_prompt` text DEFAULT NULL COMMENT '训练提示补充说明',
+  `scope` varchar(64) NOT NULL DEFAULT 'GENERAL' COMMENT '作用域：GENERAL/REVERSE_DEFAULT',
+  `status` varchar(32) NOT NULL COMMENT '状态：ACTIVE/DISABLED',
+  `sort_no` int NOT NULL DEFAULT '0' COMMENT '排序号',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_de_attachment_scope_status` (`scope`,`status`,`sort_no`,`id`),
+  KEY `idx_de_attachment_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='训练附件资源';
+
 -- de_static_package 表定义
 CREATE TABLE IF NOT EXISTS `de_static_package` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',

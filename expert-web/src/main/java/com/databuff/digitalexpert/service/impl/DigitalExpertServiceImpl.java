@@ -492,7 +492,8 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
                 resolution.expert().id(),
                 new CreateExpertTrainingTaskRequest(
                         List.of(new TrainingSourceRequest(sourceType, sourceValue, sourceVersion)),
-                        normalizeOptionalText(request.trainingGoal())
+                        normalizeOptionalText(request.trainingGoal()),
+                        request.attachmentIds()
                 )
         );
         return new ForwardTrainingSubmitResponse(

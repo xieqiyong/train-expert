@@ -150,6 +150,7 @@ public class DigitalExpertController {
             @RequestParam(value = "sourceValue", required = false) String sourceValue,
             @RequestParam(value = "sourceVersion", required = false) String sourceVersion,
             @RequestParam(value = "trainingGoal", required = false) String trainingGoal,
+            @RequestParam(value = "attachmentIdsJson", required = false) String attachmentIdsJson,
             @RequestPart(value = "docPackageFile", required = false) MultipartFile docPackageFile) {
         if (docPackageFile != null && !docPackageFile.isEmpty()) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "当前版本暂不支持文档压缩包正向训练");
@@ -163,7 +164,8 @@ public class DigitalExpertController {
                         sourceType,
                         sourceValue,
                         sourceVersion,
-                        trainingGoal
+                        trainingGoal,
+                        parseAttachmentIdsJson(attachmentIdsJson)
                 )
         ));
     }
@@ -301,6 +303,18 @@ public class DigitalExpertController {
             return result == null ? List.of() : result;
         } catch (Exception ex) {
             throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "智能体 ID JSON 格式不正确");
+        }
+    }
+
+    private List<Long> parseAttachmentIdsJson(String attachmentIdsJson) {
+        if (attachmentIdsJson == null || attachmentIdsJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<Long> result = JSON.parseArray(attachmentIdsJson, Long.class);
+            return result == null ? List.of() : result;
+        } catch (Exception ex) {
+            throw BusinessException.badRequest(ErrorCode.INVALID_REQUEST, "附件资源 ID JSON 格式不正确");
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.databuff.digitalexpert.dao.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
 public record SubmitForwardTrainingRequest(
         @NotBlank String name,
@@ -10,6 +11,7 @@ public record SubmitForwardTrainingRequest(
         @NotBlank String sourceType,
         String sourceValue,
         String sourceVersion,
-        String trainingGoal
+        String trainingGoal,
+        List<Long> attachmentIds
 ) {
 }

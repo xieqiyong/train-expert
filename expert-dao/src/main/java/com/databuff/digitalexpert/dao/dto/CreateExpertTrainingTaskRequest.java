@@ -6,6 +6,11 @@ import java.util.List;
 
 public record CreateExpertTrainingTaskRequest(
         @NotEmpty List<@Valid TrainingSourceRequest> sources,
-        String trainingGoal
+        String trainingGoal,
+        List<Long> attachmentIds
 ) {
+
+    public CreateExpertTrainingTaskRequest(List<TrainingSourceRequest> sources, String trainingGoal) {
+        this(sources, trainingGoal, List.of());
+    }
 }
