@@ -54,8 +54,7 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("4. 【P0】SKILL.md 里的name必须是 ").append(context.skillDirName()).append("，禁止自定义名称。\n")
                 .append("5. 训练结束前须用终端命令自证根 SKILL.md 存在（例如 test -f \"<技能根>/SKILL.md\" 并展示 head 前几行），不得仅凭文字声称已生成。\n")
                 .append("6. 根目录名必须是 ").append(context.skillDirName()).append("；除版本目录内增量外，每次训练都要改写或追加上述根 SKILL.md。\n")
-                .append("7. 【P0】Git 与 `static_package`：① 所有 `git clone/fetch/pull/checkout/switch` **仅**能在**技能产出树之外**的临时目录（如 `mktemp -d`）或**非产出路径**的缓存库中执行，**禁止**在技能根、版本目录、`static_package` 下执行上述命令或留下 `.git`。"
-                        + " ② 在**临时区**取码、`fetch` 并**切到输入指定引用**（存在性与失败处理见下条）后，将工作区**同步**到上文「静态资源目录」，建议**不**拷入 `.git`；仓库源码**只**应出现在此目录（可再套子目录），技能根下除 `SKILL.md` 与本次版本子目录外**不得**平铺 `src/` 等，**不要**在 01～04 旁再塞第二份整仓。③ 除根 `SKILL.md` 外，认知类 Markdown 仅写在版本目录约定路径。④ 未要求瘦身时默认可保留 tests 以支撑分析。\n")
+                .append("7. 【P0】Git 与 `static_package`：① 在**产出树外**拉代码：先 `TDIR=$(mktemp -d)` 与 `cd \"$TDIR\"` 再执行 git；若用本机缓存库，路径也须在产出树**外**。**禁止**在技能根、版本目录、`static_package` 内执行 git 或留 `.git`。② 切到指定引用后（见下条）**同步**到「静态资源目录」，建议**不**拷 `.git`；源码**只**进 `static_package/`。③ 认知类 md 仅写在版本目录。④ **训练结束**（含失败收尾）时 `rm -rf \"$TDIR\"` 删除临时目录。\n")
                 .append("8. 在临时 Git 工作区内，切换/拉取**前**须**工作区干净**（无脏文件、未提交变更），必要时先清理。\n")
                 .append("9. 【P0】若输入指定了分支/标签/版本名：临时区在 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
                 .append("10. 优先阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
