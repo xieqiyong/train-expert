@@ -57,6 +57,8 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("7. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n")
                 .append("8. Git 仓库首次拉取后，后续优先复用本地仓库，先执行 git fetch --all --prune --tags，再切换到指定版本或分支，不要每次重新全量 clone。\n")
                 .append("9. 切换分支前必须确保工作区干净；若存在未提交修改、脏文件或未跟踪文件，先清理再切换，避免分支冲突影响训练结果。\n")
+                .append("9a. 【P0】若训练输入中已指定 Git 分支/标签/版本名：在 git fetch 后必须能成功 checkout 到该引用；若经 git show-ref、git switch/git checkout 等确认该引用在远端/本地均不存在，必须立即结束本次训练：明确说明失败原因与可获取的引用列表，"
+                        + "禁止改用 unstable、main、其它分支或“最新稳定 tag”等继续拉代码并生成 skill，禁止在目标版本不存在时仍创建 static_package 与版本目录产物。\n")
                 .append("10. 优先阅读 README、构建脚本、配置文件、核心模块源码和业务文档，提炼业务能力、关键流程、边界条件与可复用操作。\n")
                 .append("11. 不要把整个仓库复制到版本目录或 static_package，只保留训练产物和必要的可读静态材料。\n");
         return builder.toString();
