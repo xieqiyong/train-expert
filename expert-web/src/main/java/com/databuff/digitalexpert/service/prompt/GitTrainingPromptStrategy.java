@@ -54,17 +54,11 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("4. 【P0】SKILL.md 里的name必须是 ").append(context.skillDirName()).append("，禁止自定义名称。\n")
                 .append("5. 训练结束前须用终端命令自证根 SKILL.md 存在（例如 test -f \"<技能根>/SKILL.md\" 并展示 head 前几行），不得仅凭文字声称已生成。\n")
                 .append("6. 根目录名必须是 ").append(context.skillDirName()).append("；除版本目录内增量外，每次训练都要改写或追加上述根 SKILL.md。\n")
-                .append("7. 本次训练内容只能写入版本目录，并在其中生成 static_package 目录。\n")
-                .append("7a. 【P0】从 Git 最终落入 skill 的**全部**源码与仓库内容（如 src、deps、tests、utils、README、版本子目录 7.x/ 等）**必须**只出现在「静态资源目录」下（与上文「静态资源目录」一致，通常 …/{版本名}/static_package/ 内），由下文**临时目录**完成拉取后**再复制/同步**过来；可在此目录下直接放仓库根内容，或再套一层子目录。"
-                        + " **禁止**在「技能根目录」下平铺 `src/`、`7.2.7/` 等，亦**禁止**在目标目录中执行 `git clone` 或长期保留 `.git`；技能根下除 SKILL.md 与**本次训练的版本子目录**外，不得出现仓库树；01～05 与 Markdown 等训练产出仍只写在**版本子目录**的规范路径中。\n")
-                .append("8. 【P0】所有 `git clone` / `git fetch` / `git pull` / `git checkout` / `git switch` **必须**在**与技能根目录、版本目录、static_package 及技能产出树**均**无关**的**临时目录**中执行（例如 `mktemp -d` 下新建工作区，或**明确位于产出树之外**的固定缓存路径）；**禁止**在「技能根目录」「版本目录」`static_package/` 或其任意子路径下对本次训练做 clone 或形成 `.git`。"
-                        + " 在**临时工作区**完成「取代码 + 切到应训练引用（见 9/9a）」后，再将所需工作区**复制或 rsync** 到「静态资源目录」，建议**不**把 `.git` 拷入 static_package。若本机有长期缓存的裸/镜像库，也须在**非产出目录**的缓存中 fetch/switch，再同步到当次 `static_package`；**不要**在目标 skill 目录里拉源码。\n")
-                .append("9. 在**用于 Git 的临时工作区**内，切换引用前须确保工作区干净；若存在未提交修改、脏文件或未跟踪文件，先清理再切换，避免分支/标签操作互相干扰。\n")
-                .append("9a. 【P0】若训练输入中已指定 Git 分支/标签/版本名：在**临时工作区**内经 `git fetch` 后必须能成功 checkout/switch 到该引用；若经 `git show-ref`、`git switch`/`git checkout` 等确认该引用在远端/本地均不存在，必须立即结束本次训练：明确说明失败原因与可获取的引用列表，"
-                        + "禁止改用 unstable、main、其它分支或“最新稳定 tag”等继续拉代码并生成 skill，禁止在目标版本不存在时仍向 static_package 同步代码或仍生成完整 skill 认知产物。\n")
-                .append("10. 优先阅读 README、构建脚本、配置文件、核心模块源码和业务文档，提炼业务能力、关键流程、边界条件与可复用操作。\n")
-                .append("11. 整仓**仅**应置于「版本目录/static_package/」中（见 7a），**不要**在技能根下再放一份、也不要在 01-04 等同级再复制整仓；static_package 内保留训练阅读所需的源码与只读材料即可，可按需裁掉无关体积（如仅 tests 的附加策略由任务显式要求时再执行），未说明则默认保留以支撑认知生成。\n")
-                .append("12. 如果找不到分支或者代码，直接退出，禁止推演查找或自行判断。\n");
+                .append("7. 【P0】Git 与 `static_package`：① 所有 `git clone/fetch/pull/checkout/switch` **仅**能在**技能产出树之外**的临时目录（如 `mktemp -d`）或**非产出路径**的缓存库中执行，**禁止**在技能根、版本目录、`static_package` 下执行上述命令或留下 `.git`。"
+                        + " ② 在**临时区**取码、`fetch` 并**切到输入指定引用**（存在性与失败处理见下条）后，将工作区**同步**到上文「静态资源目录」，建议**不**拷入 `.git`；仓库源码**只**应出现在此目录（可再套子目录），技能根下除 `SKILL.md` 与本次版本子目录外**不得**平铺 `src/` 等，**不要**在 01～04 旁再塞第二份整仓。③ 除根 `SKILL.md` 外，认知类 Markdown 仅写在版本目录约定路径。④ 未要求瘦身时默认可保留 tests 以支撑分析。\n")
+                .append("8. 在临时 Git 工作区内，切换/拉取**前**须**工作区干净**（无脏文件、未提交变更），必要时先清理。\n")
+                .append("9. 【P0】若输入指定了分支/标签/版本名：临时区在 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
+                .append("10. 优先阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
         return builder.toString();
     }
 
