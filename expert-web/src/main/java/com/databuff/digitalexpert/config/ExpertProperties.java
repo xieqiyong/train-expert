@@ -23,6 +23,8 @@ public class ExpertProperties {
      */
     private String staticPackage;
 
+    private String attachmentPackage;
+
     /**
      * 训练相关配置。
      */
