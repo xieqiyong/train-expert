@@ -45,6 +45,7 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
     private static final int DEFAULT_QUERY_LIMIT = 1000;
     private static final int MAX_QUERY_LIMIT = 10000;
     private static final String RESOURCE_DIRECTORY = "metric_resources";
+    private static final String APPLICATION_PERFORMANCE_TYPE1 = "\u5e94\u7528\u6027\u80fd";
 
     @Autowired
     private MetricsCoreMapper metricsCoreMapper;
@@ -100,11 +101,11 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
         List<MetricsCoreEntity> metrics = selectMetrics(queryRequest, null);
         Map<String, List<MetricsCoreEntity>> groupMap = new LinkedHashMap<>();
         for (MetricsCoreEntity metric : metrics) {
-            groupMap.computeIfAbsent(resolveGroupName(metric.getType1()), key -> new ArrayList<>()).add(metric);
+            groupMap.computeIfAbsent(resolveResourceGroupName(metric), key -> new ArrayList<>()).add(metric);
         }
         List<MetricsResourceFileResponse> result = new ArrayList<>();
         for (Map.Entry<String, List<MetricsCoreEntity>> entry : groupMap.entrySet()) {
-            List<Map<String, String>> items = buildResourceItems(entry.getValue());
+            Map<String, String> items = buildResourceItems(entry.getValue());
             if (items.isEmpty()) {
                 continue;
             }
@@ -163,11 +164,11 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
         }
     }
 
-    private List<Map<String, String>> buildResourceItems(List<MetricsCoreEntity> metrics) {
+    private Map<String, String> buildResourceItems(List<MetricsCoreEntity> metrics) {
         if (metrics == null || metrics.isEmpty()) {
-            return List.of();
+            return Map.of();
         }
-        List<Map<String, String>> items = new ArrayList<>();
+        Map<String, String> items = new LinkedHashMap<>();
         for (MetricsCoreEntity metric : metrics.stream()
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(MetricsCoreEntity::getId))
@@ -176,16 +177,13 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
             if (fields == null || fields.isEmpty()) {
                 continue;
             }
-            String metricKey = buildMetricKey(metric);
             for (Map.Entry<String, Object> fieldEntry : fields.entrySet()) {
                 String fieldKey = normalizeOptionalText(fieldEntry.getKey());
                 if (fieldKey == null) {
                     continue;
                 }
                 String fieldDescription = resolveFieldDescription(fieldEntry.getValue());
-                Map<String, String> item = new LinkedHashMap<>();
-                item.put(metricKey, fieldKey + ":" + fieldDescription);
-                items.add(item);
+                items.put(buildMetricFieldKey(metric, fieldKey), buildMetricFieldValue(metric, fieldDescription));
             }
         }
         return items;
@@ -204,10 +202,16 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
         }
     }
 
-    private String buildMetricKey(MetricsCoreEntity metric) {
+    private String buildMetricFieldKey(MetricsCoreEntity metric, String fieldKey) {
         String measurement = firstNonBlank(metric.getMeasurement(), "unknown_measurement");
-        String description = firstNonBlank(metric.getDescText(), measurement);
-        return measurement + ":" + description;
+        return measurement + "." + fieldKey;
+    }
+
+    private String buildMetricFieldValue(MetricsCoreEntity metric, String fieldDescription) {
+        String metricDescription = firstNonBlank(metric.getDescText(), "\u672a\u547d\u540d\u6307\u6807");
+        String normalizedFieldDescription = firstNonBlank(fieldDescription, "\u672a\u547d\u540d\u6307\u6807\u5b57\u6bb5");
+        return "\u6307\u6807\u540d\u63cf\u8ff0\uff1a" + metricDescription
+                + ",field\u63cf\u8ff0\uff1a" + normalizedFieldDescription;
     }
 
     private String resolveFieldDescription(Object value) {
@@ -223,7 +227,7 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
         return "未命名指标字段";
     }
 
-    private Path writeResourceFile(String type1, List<Map<String, String>> items) {
+    private Path writeResourceFile(String type1, Map<String, String> items) {
         String fileName = "metrics-" + sanitizeFileName(type1) + ".json";
         Path resourcePath = sharedStorageService.getStaticPackage()
                 .resolve(RESOURCE_DIRECTORY)
@@ -295,6 +299,17 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
 
     private String resolveGroupName(String value) {
         return firstNonBlank(value, "未分类");
+    }
+
+    private String resolveResourceGroupName(MetricsCoreEntity metric) {
+        if (metric == null) {
+            return resolveGroupName(null);
+        }
+        String type1 = normalizeOptionalText(metric.getType1());
+        if (APPLICATION_PERFORMANCE_TYPE1.equals(type1)) {
+            return resolveGroupName(type1);
+        }
+        return resolveGroupName(metric.getType2());
     }
 
     private String firstNonBlank(String... values) {
