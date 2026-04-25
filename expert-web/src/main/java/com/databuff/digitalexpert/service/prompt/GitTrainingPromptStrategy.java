@@ -47,7 +47,9 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
         }
         for (TrainingSourceRequest source : sources) {
             if (isGitSource(source)) {
-                builder.append("Git 工作目录（同仓库 URL 持久复用; mkdir -p 根目录后使用）: ")
+                builder.append("Git 工作目录（先 `cd ")
+                        .append(GIT_PROJECTS_ROOT)
+                        .append("` 再 `git clone <URL>`，不指定第三参数时 Git 默认创建的目录）: ")
                         .append(resolveGitWorkDir(source.sourceValue()))
                         .append("\n");
             }
@@ -70,7 +72,9 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("6. 根目录名必须是 ").append(context.skillDirName()).append("；除版本目录内增量外，每次训练都要改写或追加上述根 SKILL.md。\n")
                 .append("7. 【P0】Git 与 `static_package`：① 先 `mkdir -p \"")
                 .append(gitRoot)
-                .append("\"`（固定为 `/app/upload/projects`，勿用 `mktemp` 做仓库根）。② 上文明示的**每个**「Git 工作目录」= `GIT_WORKDIR`：若该目录**已存在**且为合法 git 工作区（含 `.git`），则 `cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再按输入的引用执行 `git checkout` 或 `git switch`；若目录**尚不存在**或不是克隆结果，则 `git clone <对应 GIT URL> \"$GIT_WORKDIR\"`，**然后**再切换到指定引用。**禁止**在训练结束 `rm -rf` 已给出的 `GIT_WORKDIR`（持久缓存、供重复训练复用）。③ 在**任何**`GIT_WORKDIR` 中，切换/拉取**前**须**工作区干净**（无脏文件、未提交变更），必要时先 `git status` 并清理。④ 将生产源码**同步**到「静态资源目录」；`static_package` **不得**含 `.git`；**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或留下 `.git`。\n")
+                .append("\"`（固定 `/app/upload/projects`，勿用 `mktemp`）。② **首次/未克隆**时**必须**使用两步：`cd \"")
+                .append(gitRoot)
+                .append("\"` 再 `git clone <对应 GIT URL>`（**不要**为 clone 再写第三参数，目录名与上文「Git 工作目录」一致，由 URL 最后一段/仓库名决定，与 Git 默认行为一致）。③ 若**该「Git 工作目录」**已存在且为合法工作区（含 `.git`）：`cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再 `git checkout`/`git switch` 到指定引用。④ **禁止**在训练结束 `rm -rf` `$GIT_WORKDIR`（持久复用）。⑤ 在 `$GIT_WORKDIR` 中切换/拉取**前**工作区须**干净**，必要时 `git status` 并清理。⑥ 将生产源码**同步**到「静态资源目录」；`static_package` **不得**含 `.git`；**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或留 `.git`。\n")
                 .append("8. 【P0】若输入指定了分支/标签/版本名：在 `GIT_WORKDIR` 中 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
                 .append("9. 优先阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
         return builder.toString();
@@ -83,44 +87,44 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
     }
 
     private Path resolveGitWorkDir(String gitUrl) {
-        return Paths.get(GIT_PROJECTS_ROOT).resolve(safeRepoDirName(gitUrl)).normalize();
+        return Paths.get(GIT_PROJECTS_ROOT).resolve(gitDefaultCloneDirName(gitUrl)).normalize();
     }
 
     /**
-     * 由仓库地址生成稳定、可作为目录名的片段（同 URL 得到同一路径）。
+     * 与在 {@code /app/upload/projects} 下执行 {@code git clone <url>}（不指定目标目录名）时 Git 使用的目录名一致
+     * （一般为 URL 路径最后一段、去掉 .git）。
      */
-    static String safeRepoDirName(String gitUrl) {
+    static String gitDefaultCloneDirName(String gitUrl) {
         if (!StringUtils.hasText(gitUrl)) {
             return "unknown";
         }
         String t = gitUrl.trim();
+        String pathPart;
         try {
             if (t.startsWith("git@")) {
                 int c = t.indexOf(':');
-                if (c > 4) {
-                    String host = t.substring(4, c);
-                    String pathPart = t.substring(c + 1).replaceAll("(?i)\\.git$", "");
-                    return sanitizeFileName(host + "_" + pathPart.replace('/', '_').replace(':', '_'));
+                if (c < 0) {
+                    return "unknown";
                 }
+                pathPart = t.substring(c + 1);
+            } else {
+                URI uri = URI.create(t);
+                pathPart = uri.getPath() != null ? uri.getPath() : "";
             }
-            URI uri = URI.create(t);
-            String host = uri.getHost() != null ? uri.getHost() : "host";
-            String path = uri.getPath() != null ? uri.getPath() : "";
-            if (path.toLowerCase().endsWith(".git")) {
-                path = path.substring(0, path.length() - 4);
-            }
-            return sanitizeFileName(host + path.replace('/', '_').replace(':', '_'));
         } catch (Exception e) {
             return "repo_" + Integer.toHexString(t.hashCode());
         }
-    }
-
-    private static String sanitizeFileName(String s) {
-        String x = s.replaceAll("[^a-zA-Z0-9._-]+", "_");
-        x = x.replaceAll("^_+", "");
-        if (!StringUtils.hasText(x) || x.length() > 200) {
-            return "repo_" + Integer.toHexString(s.hashCode());
+        while (pathPart.endsWith("/")) {
+            pathPart = pathPart.substring(0, pathPart.length() - 1);
         }
-        return x;
+        if (pathPart.length() > 4 && pathPart.toLowerCase().endsWith(".git")) {
+            pathPart = pathPart.substring(0, pathPart.length() - 4);
+        }
+        int slash = pathPart.lastIndexOf('/');
+        String base = slash >= 0 ? pathPart.substring(slash + 1) : pathPart;
+        if (!StringUtils.hasText(base)) {
+            return "repo_" + Integer.toHexString(t.hashCode());
+        }
+        return base;
     }
 }
