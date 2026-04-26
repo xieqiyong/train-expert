@@ -70,13 +70,16 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("4. 【P0】SKILL.md 里的name必须是 ").append(context.skillDirName()).append("，禁止自定义名称。\n")
                 .append("5. 训练结束前须用终端命令自证根 SKILL.md 存在（例如 test -f \"<技能根>/SKILL.md\" 并展示 head 前几行），不得仅凭文字声称已生成。\n")
                 .append("6. 根目录名必须是 ").append(context.skillDirName()).append("；除版本目录内增量外，每次训练都要改写或追加上述根 SKILL.md。\n")
-                .append("7. 【P0】Git 与 `static_package`：① 先 `mkdir -p \"")
+                .append("7. 【P0】生成期源码分析根目录：`find` 扫描、读源文件、追踪调用链、识别包/模块与环节时，**必须**以「Git 工作目录」`$GIT_WORKDIR`（见上文，位于 `")
+                .append(GIT_PROJECTS_ROOT)
+                .append("`，已 checkout 到目标引用）为**唯一**读源码根，**不得**以「只扫/只读 `static_package/`」替代对**真实仓库**的分析。`static_package/` 用于按规范**同步**进技能包、供运行期查阅；**本训练写认知与做深度扫描**时以 `$GIT_WORKDIR` 为准。向 subagent/自建提示里描述「源码根」时，须指向 `$GIT_WORKDIR` 下路径语义，**不要**把 `static_package` 当成**生成期**唯一源码真相源。\n")
+                .append("8. 【P0】Git 与 `static_package`：① 先 `mkdir -p \"")
                 .append(gitRoot)
                 .append("\"`（固定 `/app/upload/projects`，勿用 `mktemp`）。② **首次/未克隆**时**必须**使用两步：`cd \"")
                 .append(gitRoot)
-                .append("\"` 再 `git clone <对应 GIT URL>`（**不要**为 clone 再写第三参数，目录名与上文「Git 工作目录」一致，由 URL 最后一段/仓库名决定，与 Git 默认行为一致）。③ 若**该「Git 工作目录」**已存在且为合法工作区（含 `.git`）：`cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再 `git checkout`/`git switch` 到指定引用。④ **禁止**在训练结束 `rm -rf` `$GIT_WORKDIR`（持久复用）。⑤ 在 `$GIT_WORKDIR` 中切换/拉取**前**工作区须**干净**，必要时 `git status` 并清理。⑥ 将生产源码**同步**到「静态资源目录」；`static_package` **不得**含 `.git`；**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或留 `.git`。\n")
-                .append("8. 【P0】若输入指定了分支/标签/版本名：在 `GIT_WORKDIR` 中 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
-                .append("9. 优先阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
+                .append("\"` 再 `git clone <对应 GIT URL>`（**不要**为 clone 再写第三参数，目录名与上文「Git 工作目录」一致，由 URL 最后一段/仓库名决定，与 Git 默认行为一致）。③ 若**该「Git 工作目录」**已存在且为合法工作区（含 `.git`）：`cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再 `git checkout`/`git switch` 到指定引用。④ **禁止**在训练结束 `rm -rf` `$GIT_WORKDIR`（持久复用）。⑤ 在 `$GIT_WORKDIR` 中切换/拉取**前**工作区须**干净**，必要时 `git status` 并清理。⑥ 在按第 7 条完成**基于 `$GIT_WORKDIR` 的分析**后，将生产源码**同步**到「静态资源目录」；`static_package` **不得**含 `.git`；**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或留 `.git`。\n")
+                .append("9. 【P0】若输入指定了分支/标签/版本名：在 `GIT_WORKDIR` 中 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
+                .append("10. 优先在 `$GIT_WORKDIR` 内阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
         return builder.toString();
     }
 
