@@ -386,7 +386,7 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
 
             List<Long> skillIds = importSkillPackages(skillDirectories);
             replaceExpertSkills(task.getExpertId(), skillIds);
-            syncGeneratedExpertDescriptionFromSkills(task.getExpertId(), skillIds);
+            syncExpertDescriptionFromSkills(task.getExpertId(), skillIds);
 
             task = requireTask(task.getTaskId());
             task.setStatus(TrainingTaskStatus.RELEASING.name());
@@ -1146,15 +1146,12 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
                 .toList();
     }
 
-    private void syncGeneratedExpertDescriptionFromSkills(Long expertId, List<Long> skillIds) {
+    private void syncExpertDescriptionFromSkills(Long expertId, List<Long> skillIds) {
         if (expertId == null || skillIds == null || skillIds.isEmpty()) {
             return;
         }
         DigitalExpertEntity expert = expertConfigService.requireExpert(expertId);
-        if (!ExpertSource.GENERATED.name().equals(expert.getExpertSource())) {
-            return;
-        }
-        if (!isGeneratedExpertDescriptionReplaceable(expert)) {
+        if (!shouldReplaceExpertDescriptionFromSkills(expert)) {
             return;
         }
         SkillPackageEntity firstSkill = skillPackageMapper.selectById(skillIds.get(0));
@@ -1169,7 +1166,22 @@ public class ExpertTrainingServiceImpl implements ExpertTrainingService {
         expert.setDescription(description);
         expert.setUpdatedAt(LocalDateTime.now());
         digitalExpertMapper.updateById(expert);
-        log.info("已使用训练产物技能描述回填自动生成专家描述, expertId={}, skillId={}", expertId, firstSkill.getId());
+        log.info("已使用训练产物技能描述回填专家描述, expertId={}, skillId={}, expertSource={}",
+                expertId, firstSkill.getId(), expert.getExpertSource());
+    }
+
+    private boolean shouldReplaceExpertDescriptionFromSkills(DigitalExpertEntity expert) {
+        if (expert == null) {
+            return false;
+        }
+        String expertSource = normalizeNullableText(expert.getExpertSource());
+        if (ExpertSource.GENERATED.name().equals(expertSource)) {
+            return isGeneratedExpertDescriptionReplaceable(expert);
+        }
+        if (ExpertSource.CREATED.name().equals(expertSource)) {
+            return normalizeNullableText(expert.getDescription()) == null;
+        }
+        return false;
     }
 
     private boolean isGeneratedExpertDescriptionReplaceable(DigitalExpertEntity expert) {
