@@ -2,12 +2,18 @@ package com.databuff.digitalexpert.service.prompt;
 
 import com.databuff.digitalexpert.dao.dto.TrainingSourceRequest;
 import com.databuff.digitalexpert.dao.enums.TrainingSourceType;
+import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 @Component
 public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
+
+    /** Git 训练时仓库存放根目录（固定路径，与配置无关）。 */
+    private static final String GIT_PROJECTS_ROOT = "/app/upload/projects";
 
     @Override
     public boolean supports(TrainingPromptContext context) {
@@ -20,6 +26,7 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
     @Override
     public String buildPrompt(TrainingPromptContext context) {
         StringBuilder builder = new StringBuilder();
+        String gitRoot = GIT_PROJECTS_ROOT;
         builder.append("请生成 1 个数字专家 skill。\n");
         if (StringUtils.hasText(context.trainingGoal())) {
             builder.append("目标: ").append(context.trainingGoal().trim()).append("\n");
@@ -38,6 +45,15 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
             }
             builder.append("\n");
         }
+        for (TrainingSourceRequest source : sources) {
+            if (isGitSource(source)) {
+                builder.append("Git 工作目录（先 `cd ")
+                        .append(GIT_PROJECTS_ROOT)
+                        .append("` 再 `git clone <URL>`，不指定第三参数时 Git 默认创建的目录）: ")
+                        .append(resolveGitWorkDir(source.sourceValue()))
+                        .append("\n");
+            }
+        }
         context.appendAttachmentResources(builder);
 
         builder.append("技能根目录: ").append(context.skillRootDirectory()).append("\n");
@@ -54,10 +70,16 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append("4. 【P0】SKILL.md 里的name必须是 ").append(context.skillDirName()).append("，禁止自定义名称。\n")
                 .append("5. 训练结束前须用终端命令自证根 SKILL.md 存在（例如 test -f \"<技能根>/SKILL.md\" 并展示 head 前几行），不得仅凭文字声称已生成。\n")
                 .append("6. 根目录名必须是 ").append(context.skillDirName()).append("；除版本目录内增量外，每次训练都要改写或追加上述根 SKILL.md。\n")
-                .append("7. 【P0】Git 与 `static_package`：① 在**产出树外**拉代码：先 `TDIR=$(mktemp -d)` 与 `cd \"$TDIR\"` 再执行 git；若用本机缓存库，路径也须在产出树**外**。**禁止**在技能根、版本目录、`static_package` 内执行 git 或留 `.git`。② 切到指定引用后（见下条）**同步**到「静态资源目录」，建议**不**拷 `.git`；源码**只**进 `static_package/`。③ 认知类 md 仅写在版本目录。④ **训练结束**（含失败收尾）时 `rm -rf \"$TDIR\"` 删除临时目录。\n")
-                .append("8. 在临时 Git 工作区内，切换/拉取**前**须**工作区干净**（无脏文件、未提交变更），必要时先清理。\n")
-                .append("9. 【P0】若输入指定了分支/标签/版本名：临时区在 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
-                .append("10. 优先阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
+                .append("7. 【P0】生成期源码分析根目录：`find` 扫描、读源文件、追踪调用链、识别包/模块与环节时，**必须**以「Git 工作目录」`$GIT_WORKDIR`（见上文，位于 `")
+                .append(GIT_PROJECTS_ROOT)
+                .append("`，已 checkout 到目标引用）为**唯一**读源码根，**不得**以「只扫/只读 `static_package/`」替代对**真实仓库**的分析。`static_package/` 用于按规范**同步**进技能包、供运行期查阅；**本训练写认知与做深度扫描**时以 `$GIT_WORKDIR` 为准。向 subagent/自建提示里描述「源码根」时，须指向 `$GIT_WORKDIR` 下路径语义，**不要**把 `static_package` 当成**生成期**唯一源码真相源。\n")
+                .append("8. 【P0】Git 与 `static_package`：① 先 `mkdir -p \"")
+                .append(gitRoot)
+                .append("\"`（固定 `/app/upload/projects`，勿用 `mktemp`）。② **首次/未克隆**时**必须**使用两步：`cd \"")
+                .append(gitRoot)
+                .append("\"` 再 `git clone <对应 GIT URL>`（**不要**为 clone 再写第三参数，目录名与上文「Git 工作目录」一致，由 URL 最后一段/仓库名决定，与 Git 默认行为一致）。③ 若**该「Git 工作目录」**已存在且为合法工作区（含 `.git`）：`cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再 `git checkout`/`git switch` 到指定引用。④ **禁止**在训练结束 `rm -rf` `$GIT_WORKDIR`（持久复用）。⑤ 在 `$GIT_WORKDIR` 中切换/拉取**前**工作区须**干净**，必要时 `git status` 并清理。⑥ 在按第 7 条完成**基于 `$GIT_WORKDIR` 的分析**后，将生产源码**同步**到「静态资源目录」；`static_package` **不得**含 `.git`；**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或留 `.git`。\n")
+                .append("9. 【P0】若输入指定了分支/标签/版本名：在 `GIT_WORKDIR` 中 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
+                .append("10. 优先在 `$GIT_WORKDIR` 内阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
         return builder.toString();
     }
 
@@ -65,5 +87,47 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
         return source != null
                 && TrainingSourceType.GIT_URL.name().equals(source.sourceType())
                 && StringUtils.hasText(source.sourceValue());
+    }
+
+    private Path resolveGitWorkDir(String gitUrl) {
+        return Paths.get(GIT_PROJECTS_ROOT).resolve(gitDefaultCloneDirName(gitUrl)).normalize();
+    }
+
+    /**
+     * 与在 {@code /app/upload/projects} 下执行 {@code git clone <url>}（不指定目标目录名）时 Git 使用的目录名一致
+     * （一般为 URL 路径最后一段、去掉 .git）。
+     */
+    static String gitDefaultCloneDirName(String gitUrl) {
+        if (!StringUtils.hasText(gitUrl)) {
+            return "unknown";
+        }
+        String t = gitUrl.trim();
+        String pathPart;
+        try {
+            if (t.startsWith("git@")) {
+                int c = t.indexOf(':');
+                if (c < 0) {
+                    return "unknown";
+                }
+                pathPart = t.substring(c + 1);
+            } else {
+                URI uri = URI.create(t);
+                pathPart = uri.getPath() != null ? uri.getPath() : "";
+            }
+        } catch (Exception e) {
+            return "repo_" + Integer.toHexString(t.hashCode());
+        }
+        while (pathPart.endsWith("/")) {
+            pathPart = pathPart.substring(0, pathPart.length() - 1);
+        }
+        if (pathPart.length() > 4 && pathPart.toLowerCase().endsWith(".git")) {
+            pathPart = pathPart.substring(0, pathPart.length() - 4);
+        }
+        int slash = pathPart.lastIndexOf('/');
+        String base = slash >= 0 ? pathPart.substring(slash + 1) : pathPart;
+        if (!StringUtils.hasText(base)) {
+            return "repo_" + Integer.toHexString(t.hashCode());
+        }
+        return base;
     }
 }
