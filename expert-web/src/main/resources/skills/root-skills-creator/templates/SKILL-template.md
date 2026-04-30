@@ -102,7 +102,7 @@ description: 提供 {项目名} 多版本架构认知、智能问数、故障排
 
 #### 第一步：明确查询时间
 - 如果用户已提供 queryStartTime、queryEndTime，则直接使用
-- 如果没有，调用 `getCurrentTimeRangeMillis` 获取当前查询时间范围（推荐 600000ms）
+- 如果没有，调用 `getCurrentTimeRange` 获取当前查询时间范围（推荐 600000ms）
 
 #### 第二步：加载配置
 - 调用 shuku skill 加载当前项目的配置文件（如果配置文件为空则代表没有采集对应的配置文件则忽略）
@@ -118,6 +118,7 @@ description: 提供 {项目名} 多版本架构认知、智能问数、故障排
 - 使用 queryAndDrillDown 工具分析黄金指标，找出有问题的指标
 - **指标验证（必须严格执行）**：指标必须在 `[abnormalStartTime, abnormalEndTime]` 内有吻合的波动时间点才算异常
 - 若某环节黄金指标异常，则标记该环节为有问题
+- **tag 维度下钻（标记异常后执行）**：对每个已判定异常的 **identifier**，调用 **`findMetricCoreByIdentifier`** 读取 MetricsCore；据合法 tag 选定 **`groupBys`**；在同一 **`[abnormalStartTime, abnormalEndTime]`**、同一 entity（及若有则同一 AbnormalDetail）下再次 **`queryAndDrillDown`**（传入 **`groupBys`**，依据 **`rootCaseMaps`** 归纳主导异常的维度取值并写入结论）
 
 #### 第六步：环节的详细分析
 - 对有问题的环节，加载对应的 `02-领域认知/{环节}/整体逻辑.md`，提取非黄金指标
@@ -126,6 +127,7 @@ description: 提供 {项目名} 多版本架构认知、智能问数、故障排
   - 通过实体找到异常数据的具体位置
   - 追溯字段来源，确认数据产生环节
 - 查询非黄金指标并进行下钻
+- **tag 维度下钻（标记异常后执行）**：对每个已判定异常的 **identifier**，调用 **`findMetricCoreByIdentifier`** 读取 MetricsCore；据合法 tag 选定 **`groupBys`**；在同一 **`[abnormalStartTime, abnormalEndTime]`**、同一 entity（及若有则同一 AbnormalDetail）下再次 **`queryAndDrillDown`**（传入 **`groupBys`**，依据 **`rootCaseMaps`** 归纳主导异常的维度取值并写入结论）
 - **因果链条建立**：必须描述"因为指标 A 突变导致了指标 B 的异常"，严禁孤立看待指标
 - **最终验证（必须严格执行）**：所有推导出的原因，其对应指标必须在时间窗内有吻合的波动
 - **在九步流程内、且仍须更深一层明确逻辑时**：若 `02-领域认知/`、`03-实体模型/` 与当步下钻**仍不足以**支撑该步判断，可读取同版本 `static_package/` 补充认知；**不**用读源码替代或打断九步的完整与顺序

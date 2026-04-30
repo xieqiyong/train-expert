@@ -878,11 +878,11 @@ find 03-实体模型/ -name "{实体名}.md"
   - 严禁根据项目特点"补充"环节专属故障分析
   - 严禁删除模板中的任何章节、步骤、约束语句
   - 严禁修改九步法则的标题、顺序、内容
-  - 严禁替换或省略工具名、参数名、方法名（如 `getCurrentTimeRangeMillis`、`queryAndDrillDown`、`formatTime`、`detectEntity`、`MetricRequest`、`AbnormalDetail` 等）
+  - 严禁替换或省略工具名、参数名、方法名（如 `getCurrentTimeRange`、`queryAndDrillDown`、`formatTime`、`detectEntity`、`MetricRequest`、`AbnormalDetail` 等）
   - 严禁加入"常见故障速查""应急预案""P0级故障""日志分析"等模板中不存在的章节
 5. **唯一正确做法**：模板长什么样，文件就长什么样。
 
-**失败案例**：曾出现生成结果将第三步写成 `### 步骤3：全局扫描（黄金指标）`，把 `getCurrentTimeRangeMillis` 等工具名全部删除，并自创"常见故障速查""应急预案"章节，导致下游 LLM 无法调用正确工具——此类输出视为垃圾，必须杜绝。
+**失败案例**：曾出现生成结果将第三步写成 `### 步骤3：全局扫描（黄金指标）`，把 `getCurrentTimeRange` 等工具名全部删除，并自创"常见故障速查""应急预案"章节，导致下游 LLM 无法调用正确工具——此类输出视为垃圾，必须杜绝。
 
 **生成后校验（主 Agent 强制执行）**：
 
