@@ -1037,7 +1037,9 @@ public class DigitalExpertServiceImpl implements DigitalExpertService {
             return new ForwardExpertResolution(createdExpert, true);
         }
 
-        existingExpert.setDescription(description);
+        if (description != null) {
+            existingExpert.setDescription(description);
+        }
         existingExpert.setAliasName(name);
         existingExpert.setPrompt(prompt);
         existingExpert.setExpertType(expertType);
