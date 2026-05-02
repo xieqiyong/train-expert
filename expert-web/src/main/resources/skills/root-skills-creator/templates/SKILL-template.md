@@ -102,23 +102,31 @@ description: 提供 {项目名} 多版本架构认知、智能问数、故障排
 
 #### 第一步：明确查询时间
 - 如果用户已提供 queryStartTime、queryEndTime，则直接使用
-- 如果没有，调用 `getCurrentTimeRange` 获取当前查询时间范围（推荐 600000ms）
+- 如果没有，调用 `getCurrentTimeRange` 获取当前查询时间范围
 
 #### 第二步：加载配置
-- 调用 shuku skill 加载当前项目的配置文件（如果配置文件为空则代表没有采集对应的配置文件则忽略）
+- 如果能获取到当前项目的配置文件则加载它（如果配置文件为空则代表没有采集对应的配置文件则忽略）
 
 #### 第三步：全局扫描
 - 加载 `02-领域认知/整体架构.md`，提取所有环节的黄金指标
 
 #### 第四步：数据获取
-- 调用 shuku skill 一次性查询上述所有环节的黄金指标
-- 构建 MetricRequest（identifiers、entityHost/entityPort、时间范围）
+- 找出所有环节的黄金指标
+- 构建queryAndDrillDown的查询请求：
+   - AbnormalDetail：由之前的分析结果中提取，如果没有则填null，不要随意编造
+   - 构建MetricRequest
+      - identifiers：即上述所有环节的黄金指标
+      - entityHost：从schedule中提取的实体的ip地址
+      - entityPort：从schedule中提取的实体的端口号，如果没有则不用填写，不能按照常理编造（**必须严格执行**）
+      - queryStartTime：上述queryStartTime
+      - queryEndTime：上述queryEndTime
 
 #### 第五步：挑出有问题的环节
 - 使用 queryAndDrillDown 工具分析黄金指标，找出有问题的指标
 - **指标验证（必须严格执行）**：指标必须在 `[abnormalStartTime, abnormalEndTime]` 内有吻合的波动时间点才算异常
 - 若某环节黄金指标异常，则标记该环节为有问题
 - **tag 维度下钻（标记异常后执行）**：对每个已判定异常的 **identifier**，调用 **`findMetricCoreByIdentifier`** 读取 MetricsCore；据合法 tag 选定 **`groupBys`**；在同一 **`[abnormalStartTime, abnormalEndTime]`**、同一 entity（及若有则同一 AbnormalDetail）下再次 **`queryAndDrillDown`**（传入 **`groupBys`**，依据 **`rootCaseMaps`** 归纳主导异常的维度取值并写入结论）
+- **执行闸门（硬约束）**：凡是已标记异常的 **identifier**，若未完成上述 tag 下钻（未成功获取 MetricsCore、未形成有效 `groupBys`、或未执行带 `groupBys` 的二次 `queryAndDrillDown`）则本次分析无效，禁止进入结论推演与最终结论输出
 
 #### 第六步：环节的详细分析
 - 对有问题的环节，加载对应的 `02-领域认知/{环节}/整体逻辑.md`，提取非黄金指标
