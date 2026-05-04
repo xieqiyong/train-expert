@@ -124,6 +124,9 @@ description: 提供 {项目名} 多版本架构认知、智能问数、故障排
 - **指标验证（必须严格执行）**：指标必须在 `[abnormalStartTime, abnormalEndTime]` 内有吻合的波动时间点才算异常
 - 若某环节黄金指标异常，则标记该环节为有问题
 - **tag 维度下钻（标记异常后执行）**：对每个已判定异常的 **identifier**，调用 **`findMetricCoreByIdentifier`** 读取 MetricsCore；据合法 tag 选定 **`groupBys`**；在同一 **`[abnormalStartTime, abnormalEndTime]`**、同一 entity（及若有则同一 AbnormalDetail）下再次 **`queryAndDrillDown`**（传入 **`groupBys`**，依据 **`rootCaseMaps`** 归纳主导异常的维度取值并写入结论）
+- 异常指标下的rootCaseMaps
+   - 如果是null代表当前指标的问题并不集中在某几个tag维度上而是所有维度都有这种问题
+   - 如果不是null代表当前指标的问题集中在rootCaseMaps对应的维度上
 - **执行闸门（硬约束）**：凡是已标记异常的 **identifier**，若未完成上述 tag 下钻（未成功获取 MetricsCore、未形成有效 `groupBys`、或未执行带 `groupBys` 的二次 `queryAndDrillDown`）则本次分析无效，禁止进入结论推演与最终结论输出
 
 #### 第六步：环节的详细分析
