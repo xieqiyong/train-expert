@@ -23,6 +23,8 @@
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
+        <mybatis.version>3.5.19</mybatis.version>
+        <mybatis-spring.version>4.0.0</mybatis-spring.version>
         <mysql.version>8.2.0</mysql.version>
         <maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
         <flatten.maven.plugin.version>1.6.0</flatten.maven.plugin.version>
@@ -71,8 +73,18 @@
             </dependency>
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+                <artifactId>mybatis-plus</artifactId>
                 <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis</artifactId>
+                <version>${mybatis.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis-spring</artifactId>
+                <version>${mybatis-spring.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mysql</groupId>

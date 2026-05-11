@@ -49,6 +49,14 @@
             <artifactId>expert-dao</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.hz.xie</groupId>
             <artifactId>opencode-spring-boot-starter</artifactId>
         </dependency>
