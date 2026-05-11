@@ -6,8 +6,8 @@ import com.databuff.digitalexpert.common.BusinessException;
 import com.databuff.digitalexpert.dao.dto.AppInfoUploadResult;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.service.AppInfoUploadService;
-import com.databuff.digitalexpert.util.AppInfoUploadNamingUtils;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
+import com.databuff.digitalexpert.util.AppInfoUploadNamingUtils;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,15 +20,15 @@ import java.util.Enumeration;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class AppInfoUploadServiceImpl implements AppInfoUploadService {

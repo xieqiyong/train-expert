@@ -13,17 +13,19 @@
 
     <modules>
         <module>expert-dao</module>
+        <module>expert-facade</module>
         <module>expert-web</module>
     </modules>
 
     <properties>
-        <revision>0.0.1-SNAPSHOT</revision>
+        <revision>1.0.1-SNAPSHOT</revision>
         <spring-boot.version>4.0.1</spring-boot.version>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <mysql.version>8.2.0</mysql.version>
         <maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
+        <flatten.maven.plugin.version>1.6.0</flatten.maven.plugin.version>
         <lombok.version>1.18.28</lombok.version>
         <aspectjweaver.version>1.9.25.1</aspectjweaver.version>
         <fastjson2.version>2.0.61</fastjson2.version>
@@ -131,6 +133,43 @@
                     <release>${java.version}</release>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten.maven.plugin.version}</version>
+                <configuration>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                    <updatePomFile>true</updatePomFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+    <distributionManagement>
+        <!-- 快照仓库（存放 -SNAPSHOT 版本的依赖） -->
+        <snapshotRepository>
+            <id>maven-snapshots</id> <!-- 关键：与 Nexus 快照仓库的 ID 一致，也与 settings.xml 中 server 的 id 一致 -->
+            <url>http://192.168.50.105:9091/repository/maven-snapshots/</url> <!-- Nexus 快照仓库的实际 URL -->
+        </snapshotRepository>
+        <!-- 发布仓库（存放正式版本，无 -SNAPSHOT 后缀的依赖） -->
+        <repository>
+            <id>maven-releases</id> <!-- 同理：对应 Nexus 中类型为 maven2 (release) 的仓库 ID（默认 maven-releases） -->
+            <url>http://192.168.50.105:9091/repository/maven-releases/</url> <!-- Nexus 发布仓库的实际 URL -->
+        </repository>
+    </distributionManagement>
 </project>

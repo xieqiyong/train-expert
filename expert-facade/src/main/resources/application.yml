@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: databuff-digital-expert-facade
+  datasource:
+    url: ${DB_URL:jdbc:mysql://192.168.50.195:3306/dc_databuff?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:234*(sdlj12}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+  mvc:
+    format:
+      date: yyyy-MM-dd
+      time: HH:mm:ss
+      date-time: yyyy-MM-dd HH:mm:ss
+
+server:
+  port: ${SERVER_PORT:19009}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false

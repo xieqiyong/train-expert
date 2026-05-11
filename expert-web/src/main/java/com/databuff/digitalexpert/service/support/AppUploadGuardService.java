@@ -1,7 +1,6 @@
 package com.databuff.digitalexpert.service.support;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.databuff.digitalexpert.config.ExpertProperties;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertTrainingTaskEntity;
 import com.databuff.digitalexpert.dao.enums.TrainingTaskStatus;

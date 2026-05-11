@@ -1,7 +1,7 @@
 package com.databuff.digitalexpert.dao.dto;
 
-import com.databuff.digitalexpert.dao.enums.ExpertType;
 import com.databuff.digitalexpert.dao.enums.ExpertStatus;
+import com.databuff.digitalexpert.dao.enums.ExpertType;
 import java.util.List;
 
 public record ExpertBatchQueryRequest(
