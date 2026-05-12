@@ -2,10 +2,29 @@ package com.databuff.digitalexpert.facade.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.databuff.digitalexpert.dao.dto.AgentBindingGroupResponse;
+import com.databuff.digitalexpert.dao.dto.BindExpertAgentsCommand;
+import com.databuff.digitalexpert.dao.dto.ChangeExpertStatusRequest;
+import com.databuff.digitalexpert.dao.dto.CreateExpertRequest;
+import com.databuff.digitalexpert.dao.dto.CreateManualExpertRequest;
 import com.databuff.digitalexpert.dao.dto.McpBindingRequest;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
 import com.databuff.digitalexpert.dao.dto.ExpertBatchQueryRequest;
+import com.databuff.digitalexpert.dao.dto.ExpertBindingUpdateResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertConfigResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertIdRequest;
+import com.databuff.digitalexpert.dao.dto.ExpertReleaseTaskResponse;
 import com.databuff.digitalexpert.dao.dto.ExpertSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.ExpertTaskListQueryRequest;
+import com.databuff.digitalexpert.dao.dto.ExpertTaskRequest;
+import com.databuff.digitalexpert.dao.dto.ExpertTrainingTaskResponse;
+import com.databuff.digitalexpert.dao.dto.ImportExpertPackageResponse;
+import com.databuff.digitalexpert.dao.dto.ManualCreateExpertResponse;
+import com.databuff.digitalexpert.dao.dto.ManualUpdateExpertResponse;
+import com.databuff.digitalexpert.dao.dto.SubmitExpertTrainingTaskRequest;
+import com.databuff.digitalexpert.dao.dto.UpdateExpertBindingsCommand;
+import com.databuff.digitalexpert.dao.dto.UpdateExpertCommand;
+import com.databuff.digitalexpert.dao.dto.UpdateManualExpertRequest;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
 import com.databuff.digitalexpert.dao.entity.ExpertMcpBindingEntity;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
@@ -23,6 +42,10 @@ import com.databuff.digitalexpert.facade.dto.ExpertMcpUpsertRequest;
 import com.databuff.digitalexpert.facade.dto.ExpertMcpUpsertResponse;
 import com.databuff.digitalexpert.facade.service.AgentFacadeService;
 import com.databuff.digitalexpert.facade.service.ExpertFacadeService;
+import com.databuff.digitalexpert.service.DigitalExpertService;
+import com.databuff.digitalexpert.service.ExpertConfigService;
+import com.databuff.digitalexpert.service.ExpertReleaseService;
+import com.databuff.digitalexpert.service.ExpertTrainingService;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +59,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ExpertFacadeServiceImpl implements ExpertFacadeService {
@@ -50,6 +74,19 @@ public class ExpertFacadeServiceImpl implements ExpertFacadeService {
     private AgentExpertBindingMapper agentExpertBindingMapper;
     @Autowired
     private AgentFacadeService agentFacadeService;
+    @Autowired
+    private DigitalExpertService digitalExpertService;
+    @Autowired
+    private ExpertConfigService expertConfigService;
+    @Autowired
+    private ExpertReleaseService expertReleaseService;
+    @Autowired
+    private ExpertTrainingService expertTrainingService;
+
+    @Override
+    public ExpertSummaryResponse createExpert(CreateExpertRequest request) {
+        return digitalExpertService.createExpert(request);
+    }
 
     @Override
     public List<ExpertSummaryResponse> listExperts(ExpertBatchQueryRequest request) {
@@ -90,6 +127,106 @@ public class ExpertFacadeServiceImpl implements ExpertFacadeService {
             }
         }
         return result;
+    }
+
+    @Override
+    public ExpertConfigResponse getExpertConfig(ExpertIdRequest request) {
+        validateExpertIdRequest(request);
+        return expertConfigService.getConfig(request.expertId());
+    }
+
+    @Override
+    public List<ExpertSummaryResponse> changeExpertStatus(ChangeExpertStatusRequest request) {
+        if (request == null) {
+            throw FacadeBusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家状态变更请求不能为空");
+        }
+        return digitalExpertService.changeExpertStatus(request.expertIds(), request.operation());
+    }
+
+    @Override
+    public ExpertBindingUpdateResponse updateBindings(UpdateExpertBindingsCommand request) {
+        if (request == null) {
+            throw FacadeBusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家绑定请求不能为空");
+        }
+        return digitalExpertService.updateBindings(request.expertId(), request.toBindingsRequest());
+    }
+
+    @Override
+    public ExpertReleaseTaskResponse submitReleaseTask(ExpertIdRequest request) {
+        validateExpertIdRequest(request);
+        return expertReleaseService.submitReleaseTask(request.expertId());
+    }
+
+    @Override
+    public ExpertReleaseTaskResponse getReleaseTask(ExpertTaskRequest request) {
+        validateTaskRequest(request);
+        return expertReleaseService.getTask(request.expertId(), request.taskId());
+    }
+
+    @Override
+    public List<ExpertReleaseTaskResponse> listReleaseTasks(ExpertTaskListQueryRequest request) {
+        return expertReleaseService.listTasks(request == null ? null : request.expertId());
+    }
+
+    @Override
+    public ExpertTrainingTaskResponse submitTrainingTask(SubmitExpertTrainingTaskRequest request) {
+        if (request == null) {
+            throw FacadeBusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家训练任务请求不能为空");
+        }
+        return expertTrainingService.submitTrainingTask(request.expertId(), request.toTrainingTaskRequest());
+    }
+
+    @Override
+    public ExpertTrainingTaskResponse getTrainingTask(ExpertTaskRequest request) {
+        validateTaskRequest(request);
+        return expertTrainingService.getTask(request.expertId(), request.taskId());
+    }
+
+    @Override
+    public Boolean abortTrainingTask(ExpertTaskRequest request) {
+        validateTaskRequest(request);
+        return expertTrainingService.abortTask(request.expertId(), request.taskId());
+    }
+
+    @Override
+    public List<ExpertTrainingTaskResponse> listTrainingTasks(ExpertTaskListQueryRequest request) {
+        return expertTrainingService.listTasks(request == null ? null : request.expertId());
+    }
+
+    @Override
+    public List<AgentBindingGroupResponse> listAgentBindings() {
+        return digitalExpertService.listAgentBindings();
+    }
+
+    @Override
+    public ExpertBindingUpdateResponse bindAgents(BindExpertAgentsCommand request) {
+        return digitalExpertService.bindAgents(request);
+    }
+
+    @Override
+    public ExpertSummaryResponse updateExpert(UpdateExpertCommand request) {
+        return digitalExpertService.updateExpert(request);
+    }
+
+    @Override
+    public Boolean deleteExpert(ExpertIdRequest request) {
+        validateExpertIdRequest(request);
+        return digitalExpertService.deleteExpert(request.expertId());
+    }
+
+    @Override
+    public ImportExpertPackageResponse importPackage(MultipartFile file, boolean autoRelease) {
+        return digitalExpertService.importExpertPackage(file, autoRelease);
+    }
+
+    @Override
+    public ManualCreateExpertResponse createManualExpert(CreateManualExpertRequest request, List<MultipartFile> skillFiles) {
+        return digitalExpertService.createManualExpert(request, skillFiles);
+    }
+
+    @Override
+    public ManualUpdateExpertResponse updateManualExpert(UpdateManualExpertRequest request, List<MultipartFile> skillFiles) {
+        return digitalExpertService.updateManualExpert(request, skillFiles);
     }
 
     @Override
@@ -278,6 +415,18 @@ public class ExpertFacadeServiceImpl implements ExpertFacadeService {
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private void validateExpertIdRequest(ExpertIdRequest request) {
+        if (request == null || request.expertId() == null) {
+            throw FacadeBusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家 ID 不能为空");
+        }
+    }
+
+    private void validateTaskRequest(ExpertTaskRequest request) {
+        if (request == null || request.expertId() == null || !StringUtils.hasText(request.taskId())) {
+            throw FacadeBusinessException.badRequest(ErrorCode.INVALID_REQUEST, "专家任务请求不能为空");
+        }
     }
 
     private String normalizeRequiredText(String value, String message) {

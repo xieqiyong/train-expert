@@ -49,6 +49,10 @@
             <artifactId>expert-dao</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.databuff</groupId>
+            <artifactId>expert-service</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus</artifactId>
         </dependency>

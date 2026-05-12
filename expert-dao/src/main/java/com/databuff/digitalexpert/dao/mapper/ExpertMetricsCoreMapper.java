@@ -5,5 +5,5 @@ import com.databuff.digitalexpert.dao.entity.MetricsCoreEntity;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface MetricsCoreMapper extends BaseMapper<MetricsCoreEntity> {
+public interface ExpertMetricsCoreMapper extends BaseMapper<MetricsCoreEntity> {
 }

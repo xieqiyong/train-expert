@@ -13,6 +13,7 @@
 
     <modules>
         <module>expert-dao</module>
+        <module>expert-service</module>
         <module>expert-facade</module>
         <module>expert-web</module>
     </modules>
@@ -64,6 +65,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>expert-dao</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>expert-service</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

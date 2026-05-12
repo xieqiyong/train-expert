@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONWriter;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.databuff.digitalexpert.dao.dto.AgentBatchQueryRequest;
 import com.databuff.digitalexpert.dao.dto.AgentSummaryResponse;
+import com.databuff.digitalexpert.dao.dto.PlatformServiceResponse;
 import com.databuff.digitalexpert.dao.entity.AgentExpertBindingEntity;
 import com.databuff.digitalexpert.dao.entity.AiAgentEntity;
 import com.databuff.digitalexpert.dao.entity.DigitalExpertEntity;
@@ -22,6 +23,7 @@ import com.databuff.digitalexpert.facade.dto.AgentMcpDeployResponse;
 import com.databuff.digitalexpert.facade.dto.AgentOpencodeRefreshRequest;
 import com.databuff.digitalexpert.facade.dto.AgentOpencodeRefreshResponse;
 import com.databuff.digitalexpert.facade.service.AgentFacadeService;
+import com.databuff.digitalexpert.service.AiAgentService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +53,8 @@ public class AgentFacadeServiceImpl implements AgentFacadeService {
     private DigitalExpertMapper digitalExpertMapper;
     @Autowired
     private ExpertMcpBindingMapper expertMcpBindingMapper;
+    @Autowired
+    private AiAgentService aiAgentService;
 
     @Override
     public List<AgentSummaryResponse> listAgents(AgentBatchQueryRequest request) {
@@ -86,6 +90,11 @@ public class AgentFacadeServiceImpl implements AgentFacadeService {
             }
         }
         return result;
+    }
+
+    @Override
+    public List<PlatformServiceResponse> listPlatformServices() {
+        return aiAgentService.listPlatformServices();
     }
 
     @Override

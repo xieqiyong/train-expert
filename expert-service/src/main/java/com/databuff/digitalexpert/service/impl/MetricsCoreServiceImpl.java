@@ -17,7 +17,7 @@ import com.databuff.digitalexpert.dao.enums.AttachmentResourceStatus;
 import com.databuff.digitalexpert.dao.enums.ErrorCode;
 import com.databuff.digitalexpert.dao.enums.TrainingSourceType;
 import com.databuff.digitalexpert.dao.mapper.AttachmentResourceMapper;
-import com.databuff.digitalexpert.dao.mapper.MetricsCoreMapper;
+import com.databuff.digitalexpert.dao.mapper.ExpertMetricsCoreMapper;
 import com.databuff.digitalexpert.service.MetricsCoreService;
 import com.databuff.digitalexpert.service.storage.SharedStorageService;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +48,7 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
     private static final String APPLICATION_PERFORMANCE_TYPE1 = "\u5e94\u7528\u6027\u80fd";
 
     @Autowired
-    private MetricsCoreMapper metricsCoreMapper;
+    private ExpertMetricsCoreMapper expertMetricsCoreMapper;
     @Autowired
     private AttachmentResourceMapper attachmentResourceMapper;
     @Autowired
@@ -152,7 +152,7 @@ public class MetricsCoreServiceImpl implements MetricsCoreService {
         if (limit != null) {
             queryWrapper.last("limit " + limit);
         }
-        return metricsCoreMapper.selectList(queryWrapper);
+        return expertMetricsCoreMapper.selectList(queryWrapper);
     }
 
     private void eqIfPresent(LambdaQueryWrapper<MetricsCoreEntity> queryWrapper,
