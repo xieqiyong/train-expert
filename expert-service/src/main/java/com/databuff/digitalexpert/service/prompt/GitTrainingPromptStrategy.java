@@ -77,7 +77,9 @@ public class GitTrainingPromptStrategy implements TrainingPromptStrategy {
                 .append(gitRoot)
                 .append("\"`（固定 `/app/upload/projects`，勿用 `mktemp`）。② **首次/未克隆**时**必须**使用两步：`cd \"")
                 .append(gitRoot)
-                .append("\"` 再 `git clone <对应 GIT URL>`（**不要**为 clone 再写第三参数，目录名与上文「Git 工作目录」一致，由 URL 最后一段/仓库名决定，与 Git 默认行为一致）。③ 若**该「Git 工作目录」**已存在且为合法工作区（含 `.git`）：`cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再 `git checkout`/`git switch` 到指定引用。④ **禁止**在训练结束 `rm -rf` `$GIT_WORKDIR`（持久复用）。⑤ 在 `$GIT_WORKDIR` 中切换/拉取**前**工作区须**干净**，必要时 `git status` 并清理。⑥ 在按第 7 条完成**基于 `$GIT_WORKDIR` 的分析**后，将生产源码**同步**到「静态资源目录」；`static_package` **不得**含 `.git`；**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或留 `.git`。\n")
+                .append("\"` 再 `git clone <对应 GIT URL>`（**不要**为 clone 再写第三参数，目录名与上文「Git 工作目录」一致，由 URL 最后一段/仓库名决定，与 Git 默认行为一致）。③ 若**该「Git 工作目录」**已存在且为合法工作区（含 `.git`）：`cd \"$GIT_WORKDIR\"`，`git fetch --all --prune`（视需要），再 `git checkout`/`git switch` 到指定引用。④ **禁止**在训练结束 `rm -rf` `$GIT_WORKDIR`（持久复用）。⑤ 在 `$GIT_WORKDIR` 中切换/拉取**前**工作区须**干净**，必要时 `git status` 并清理。⑥ 在按第 7 条完成**基于 `$GIT_WORKDIR` 的分析**后，**必须**直接用 `cp -r` 将 Git 项目源码拷贝到「静态资源目录」：先 `STATIC_PACKAGE_DIR=\"")
+                .append(context.staticPackageDirectory())
+                .append("\"` 并 `mkdir -p \"$STATIC_PACKAGE_DIR\"`，再执行 `cp -r \"$GIT_WORKDIR\"/. \"$STATIC_PACKAGE_DIR\"/`；拷贝完成后**必须**执行 `rm -rf \"$STATIC_PACKAGE_DIR/.git\"`，确保 `static_package` 不包含 `.git`。**禁止**在技能根、版本目录、`static_package` 内执行 `git` 或保留 `.git`。\n")
                 .append("9. 【P0】若输入指定了分支/标签/版本名：在 `GIT_WORKDIR` 中 `git fetch` 后必须能 `checkout/switch` 到该引用。若经 `git show-ref` 等确认不存在，**立即结束**并说明原因与可用引用；**禁止** fallback 到 main、unstable、其他分支或“最新 tag”，**禁止**再同步 `static_package` 或继续生成完整认知。找不到对应分支/代码时直接退出，**禁止**自行推演或编造。\n")
                 .append("10. 优先在 `$GIT_WORKDIR` 内阅读 README、构建脚本、配置、核心模块与业务文档，再按 root-skills-creator 落档。\n");
         return builder.toString();
